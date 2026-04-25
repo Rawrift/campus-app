@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Campus App</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header>
+        <h1>Campus App</h1>
+        <p class="subtitle">Panel académico inicial</p>
+
+        <div class="tester">
+          <button id="test-button" type="button">Probar app ahora</button>
+          <p id="test-status" class="status idle">Apretá el botón para probar si todo funciona.</p>
+        </div>
+      </header>
+
+      <section class="grid">
+        <article class="card" id="courses-card">
+          <h2>Materias activas</h2>
+          <ul id="course-list"></ul>
+        </article>
+
+        <article class="card" id="tasks-card">
+          <h2>Tareas pendientes</h2>
+          <ul id="task-list"></ul>
+        </article>
+
+        <article class="card warning" id="issues-card">
+          <h2>Errores detectados</h2>
+          <ul id="issue-list"></ul>
+        </article>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
