@@ -109,6 +109,20 @@ export class StatBlock {
     if (this.mods.length !== before) this.cache = null;
   }
 
+  /**
+   * Removes every modifier whose source begins with `prefix`.
+   *
+   * Equipment needs this: removing only the sources of *currently* equipped
+   * items leaves an unequipped item's modifiers applied forever, so stats climb
+   * with every gear swap. Clearing the whole `item:` namespace before
+   * re-applying is the only version that cannot leak.
+   */
+  removeByPrefix(prefix: string): void {
+    const before = this.mods.length;
+    this.mods = this.mods.filter((m) => !m.source?.startsWith(prefix));
+    if (this.mods.length !== before) this.cache = null;
+  }
+
   clearModifiers(): void {
     this.mods = [];
     this.cache = null;

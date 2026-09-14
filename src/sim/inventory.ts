@@ -8,7 +8,7 @@
 
 import { ITEM_BASES } from '@/data/items.data';
 import {
-  EQUIP_SLOTS, itemModifiers,
+  itemModifiers,
   type EquipSlot, type ItemBase, type ItemInstance,
 } from './items';
 import { AFFIXES } from '@/data/affixes.data';
@@ -262,10 +262,11 @@ export class Equipment {
    * to incrementally add and remove individual modifiers.
    */
   applyTo(stats: StatBlock): void {
-    for (const slot of EQUIP_SLOTS) stats.removeBySource(`slot:${slot}`);
-    stats.removeBySource('equipment');
-    // Drop every per-item source, then re-add from scratch.
-    for (const item of this.all) stats.removeBySource(`item:${item.uid}`);
+    // Clear the entire `item:` namespace rather than the sources of the items
+    // that happen to be equipped right now — an item that was just swapped out
+    // is no longer in `this.all`, so a per-item removal would leave its
+    // modifiers applied permanently.
+    stats.removeByPrefix('item:');
     for (const item of this.all) {
       stats.addModifiers(itemModifiers(item, baseOf(item), (id) => AFFIXES.find(id)));
     }
