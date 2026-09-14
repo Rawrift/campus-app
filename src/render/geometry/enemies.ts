@@ -61,7 +61,7 @@ export class EnemyRig {
     const skin = material('skin', v.primary, seed + 2);
     const accent = material('iron', v.accent, seed + 3);
     const glowMat = v.glow
-      ? material('bone', v.accent, seed + 4, { emissive: v.accent, emissiveIntensity: v.glow * 2.2 })
+      ? material('bone', v.accent, seed + 4, { emissive: v.accent, emissiveIntensity: v.glow * 0.85 })
       : accent;
 
     switch (v.build) {
@@ -187,8 +187,12 @@ export class EnemyRig {
       // --- tall: elongated, robed, no visible legs. Reads as "wrong". -------
       case 'tall': {
         this.torso.position.y = 1.0;
-        const robe = this.mesh(this.torso, new THREE.CylinderGeometry(0.16, 0.38, 1.2, 9), primary);
+        // A narrower taper plus real shoulders: a plain wide cone reads as a
+        // traffic cone rather than as something wearing a robe.
+        const robe = this.mesh(this.torso, new THREE.CylinderGeometry(0.15, 0.29, 1.2, 9), primary);
         robe.position.y = -0.2;
+        const shoulders = this.mesh(this.torso, new THREE.BoxGeometry(0.44, 0.16, 0.22), secondary, 0.3);
+        shoulders.rotation.z = 0.04;
         this.head.position.y = 0.5;
         this.torso.add(this.head);
         const skull = this.mesh(this.head, new THREE.SphereGeometry(0.11, 9, 7), skin);

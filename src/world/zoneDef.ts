@@ -95,6 +95,14 @@ export interface Ambience {
   readonly wallColour: number;
   /** Interior zones get no sky and a much tighter fog. */
   readonly interior: boolean;
+  /**
+   * Height of blocking geometry, in world units.
+   *
+   * Indoors this is real architecture and wants to be tall. Outdoors the same
+   * value turns every field boundary into a wall that shadows the whole zone,
+   * so the exterior regions use low banks and hedgerows instead.
+   */
+  readonly wallHeight: number;
   /** Drives the procedural ambient audio bed (§31). */
   readonly ambienceTrack: 'wind' | 'crypt' | 'village';
 }
@@ -201,16 +209,22 @@ export function onGround(grid: NavGrid, x: number, y: number): { x: number; y: n
 }
 
 /** A torch with its light, used everywhere the player needs a hot spot (§28). */
+/*
+ * Light intensities are in three.js's physical units, where a point light
+ * contributes intensity / distance^2. A torch therefore needs an intensity in
+ * the tens to be visible three metres away; the single-digit values that read
+ * naturally to a human are effectively unlit.
+ */
 export function torch(x: number, y: number, variant = 0): Prop {
   return {
     kind: 'torch', x, y, rotation: 0, scale: 1, variant,
-    light: { colour: 0xff9a44, intensity: 2.6, range: 9, flicker: 0.18 },
+    light: { colour: 0xff9a44, intensity: 34, range: 13, flicker: 0.18 },
   };
 }
 
 export function brazier(x: number, y: number, variant = 0): Prop {
   return {
     kind: 'brazier', x, y, rotation: 0, scale: 1, variant,
-    light: { colour: 0xffa855, intensity: 3.4, range: 12, flicker: 0.22 },
+    light: { colour: 0xffa855, intensity: 52, range: 17, flicker: 0.22 },
   };
 }

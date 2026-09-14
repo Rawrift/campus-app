@@ -25,30 +25,50 @@ import {
 // Shared atmosphere presets (§28)
 // ---------------------------------------------------------------------------
 
+/*
+ * Lighting values are tuned against actual renders, not guessed.
+ *
+ * Two things drove the numbers. First, three.js uses physically-correct light
+ * units, so a point light's contribution falls off as intensity/distance^2 —
+ * torch intensities therefore live in the tens, not in single digits.
+ * Second, a low ambient plus a near-overhead sun makes every vertical surface
+ * read as a black silhouette, which breaks the brief's requirement (§2) that
+ * the player instantly distinguish character, weapon and enemy type. The sun
+ * is consequently low and raking, and the hemisphere light is strong enough to
+ * keep vertical faces legible while the scene stays firmly dark.
+ */
 const OUTDOOR_AMBIENCE: Ambience = {
-  ambientColour: 0x3d4148, ambientIntensity: 0.55,
-  sunColour: 0x8f8674, sunIntensity: 0.85,
-  sunAngle: [-0.9, 2.3],
-  fogColour: 0x2b2c2a, fogNear: 18, fogFar: 58,
-  groundColour: 0x4a4335, wallColour: 0x504a42,
-  interior: false, ambienceTrack: 'wind',
+  ambientColour: 0x565e6b, ambientIntensity: 0.85,
+  sunColour: 0x9a8b70, sunIntensity: 1.35,
+  sunAngle: [-0.85, 2.3],
+  fogColour: 0x2b2c2a, fogNear: 22, fogFar: 66,
+  groundColour: 0x6e6149, wallColour: 0x6b6557,
+  interior: false, wallHeight: 1.35, ambienceTrack: 'wind',
 };
 
 const VILLAGE_AMBIENCE: Ambience = {
   ...OUTDOOR_AMBIENCE,
-  ambientColour: 0x44464a, ambientIntensity: 0.68,
-  sunColour: 0x9d9078, sunIntensity: 1.0,
-  fogColour: 0x30302e, fogNear: 22, fogFar: 66,
+  ambientColour: 0x5e6673, ambientIntensity: 0.95,
+  sunColour: 0xa2947a, sunIntensity: 1.5,
+  fogColour: 0x34332f, fogNear: 26, fogFar: 78,
+  groundColour: 0x756750, wallColour: 0x736c5c,
+  wallHeight: 2.2,
   ambienceTrack: 'village',
 };
 
+/*
+ * The ossuary is meant to be the dark one: its ambient is a third of the
+ * outdoor value, so torchlight does the work and unlit corners genuinely read
+ * as unsafe. It is still bright enough to fight in, which is the line §28 draws
+ * between darkness as a mechanic and darkness as a defect.
+ */
 const CRYPT_AMBIENCE: Ambience = {
-  ambientColour: 0x23252b, ambientIntensity: 0.28,
-  sunColour: 0x2a2c34, sunIntensity: 0.12,
-  sunAngle: [-1.2, 1.6],
-  fogColour: 0x101013, fogNear: 8, fogFar: 30,
-  groundColour: 0x3a3732, wallColour: 0x423d36,
-  interior: true, ambienceTrack: 'crypt',
+  ambientColour: 0x3a3e4c, ambientIntensity: 0.42,
+  sunColour: 0x3e4354, sunIntensity: 0.22,
+  sunAngle: [-0.7, 1.6],
+  fogColour: 0x0e0e12, fogNear: 11, fogFar: 38,
+  groundColour: 0x5f584c, wallColour: 0x645d50,
+  interior: true, wallHeight: 3.4, ambienceTrack: 'crypt',
 };
 
 // ---------------------------------------------------------------------------
@@ -118,7 +138,7 @@ const HUB: ZoneDef = {
     props.push({ kind: 'anvil', x: 19, y: 23.5, rotation: 0.4, scale: 1, variant: 0 });
     props.push({
       kind: 'forge', x: 21, y: 23.5, rotation: 0, scale: 1, variant: 0,
-      light: { colour: 0xff7a28, intensity: 4.0, range: 10, flicker: 0.3 },
+      light: { colour: 0xff7a28, intensity: 60, range: 14, flicker: 0.3 },
     });
     props.push({ kind: 'stall', x: 36.5, y: 23.5, rotation: 0, scale: 1, variant: 0 });
 
@@ -503,7 +523,7 @@ const DUNGEON: ZoneDef = {
     // --- Belfry: the boss arena --------------------------------------------
     props.push({
       kind: 'bell', x: 32, y: 6, rotation: 0, scale: 2.6, variant: 0,
-      light: { colour: 0xc8a349, intensity: 1.2, range: 14, flicker: 0.05 },
+      light: { colour: 0xc8a349, intensity: 40, range: 18, flicker: 0.05 },
       note: 'The ninth bell. It is ringing, very quietly, and nothing is touching it.',
     });
     props.push({ kind: 'pillar', x: 22, y: 5, rotation: 0, scale: 1.5, variant: 5 });

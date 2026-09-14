@@ -122,7 +122,7 @@ export function metalSurface(seed: number, base: number, rustAmount = 0.5): Surf
     const r = rust[i]!;
     // Rust appears where the noise is high, tinted towards oxide orange.
     const rusty = Math.max(0, (r - (1 - rustAmount)) * 2.2);
-    const shade = 0.68 + g * 0.5;
+    const shade = 0.82 + g * 0.55;
 
     const rr = (c.r * shade * 255) * (1 - rusty) + 122 * rusty;
     const gg = (c.g * shade * 255) * (1 - rusty) + 62 * rusty;
@@ -186,7 +186,7 @@ export function leatherSurface(seed: number, base: number): SurfaceMaps {
   for (let i = 0; i < SIZE * SIZE; i++) {
     const g = grain[i]!;
     const b = blotch[i]!;
-    const shade = 0.6 + g * 0.35 + b * 0.25;
+    const shade = 0.78 + g * 0.42 + b * 0.3;
     img.data[i * 4] = c.r * shade * 255;
     img.data[i * 4 + 1] = c.g * shade * 255;
     img.data[i * 4 + 2] = c.b * shade * 255;
@@ -238,7 +238,7 @@ export function clothSurface(seed: number, base: number): SurfaceMaps {
     // Explicit weave: alternating warp and weft brightness.
     const weave = (Math.sin(x * 1.6) * 0.5 + 0.5) * 0.09 + (Math.sin(y * 1.6) * 0.5 + 0.5) * 0.09;
     const d = dirt[i]!;
-    const shade = 0.62 + weave + d * 0.3;
+    const shade = 0.8 + weave * 1.3 + d * 0.34;
     img.data[i * 4] = c.r * shade * 255;
     img.data[i * 4 + 1] = c.g * shade * 255;
     img.data[i * 4 + 2] = c.b * shade * 255;
@@ -280,7 +280,7 @@ export function woodSurface(seed: number, base: number): SurfaceMaps {
     // Rings: a sine along one axis, displaced by noise so it is not a barcode.
     const rings = Math.sin((y + warp[i]! * 34) * 0.42) * 0.5 + 0.5;
     const d = damp[i]!;
-    const shade = (0.55 + rings * 0.34) * (1 - d * 0.35);
+    const shade = (0.74 + rings * 0.42) * (1 - d * 0.28);
     img.data[i * 4] = c.r * shade * 255;
     img.data[i * 4 + 1] = c.g * shade * 255;
     img.data[i * 4 + 2] = c.b * shade * 255;
@@ -326,7 +326,7 @@ export function stoneSurface(seed: number, base: number, mossAmount = 0.25): Sur
     const g = grain[i]!;
     const d = damp[i]!;
     const moss = Math.max(0, (d - (1 - mossAmount)) * 2.4);
-    const shade = 0.6 + g * 0.42;
+    const shade = 0.78 + g * 0.62;
     const rr = c.r * shade * 255 * (1 - moss) + 62 * moss;
     const gg = c.g * shade * 255 * (1 - moss) + 74 * moss;
     const bb = c.b * shade * 255 * (1 - moss) + 44 * moss;
@@ -339,8 +339,8 @@ export function stoneSurface(seed: number, base: number, mossAmount = 0.25): Sur
 
   // Block joints, drawn as darker mortar lines with slight row offset.
   const blockH = 32;
-  ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+  ctx.lineWidth = 2.2;
   for (let row = 0; row * blockH < SIZE; row++) {
     const y = row * blockH;
     ctx.beginPath();
@@ -359,7 +359,7 @@ export function stoneSurface(seed: number, base: number, mossAmount = 0.25): Sur
   for (let i = 0; i < 14; i++) {
     let x = rng.range(0, SIZE);
     let y = rng.range(0, SIZE);
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.strokeStyle = 'rgba(0,0,0,0.22)';
     ctx.lineWidth = rng.range(0.6, 1.6);
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -390,7 +390,10 @@ export function groundSurface(seed: number, base: number, vegetation = 0.2): Sur
     const a = coarse[i]!;
     const b = fine[i]!;
     const veg = Math.max(0, (a - (1 - vegetation)) * 2.0);
-    const shade = 0.55 + a * 0.4 + b * 0.16;
+    // A wide shade range centred near 1.0: the ground is the largest surface
+    // on screen, and a narrow or dark range makes it read as poured concrete
+    // rather than as earth.
+    const shade = 0.72 + a * 0.85 + b * 0.3;
     img.data[i * 4] = c.r * shade * 255 * (1 - veg) + 78 * veg;
     img.data[i * 4 + 1] = c.g * shade * 255 * (1 - veg) + 84 * veg;
     img.data[i * 4 + 2] = c.b * shade * 255 * (1 - veg) + 46 * veg;
@@ -399,13 +402,26 @@ export function groundSurface(seed: number, base: number, vegetation = 0.2): Sur
   ctx.putImageData(img, 0, 0);
 
   // Scattered gravel.
-  for (let i = 0; i < 220; i++) {
+  for (let i = 0; i < 420; i++) {
     const x = rng.range(0, SIZE);
     const y = rng.range(0, SIZE);
-    ctx.fillStyle = `rgba(${rng.int(60, 110)},${rng.int(56, 100)},${rng.int(48, 86)},0.6)`;
+    const dark = rng.chance(0.5);
+    ctx.fillStyle = dark
+      ? `rgba(${rng.int(24, 54)},${rng.int(22, 48)},${rng.int(18, 40)},0.75)`
+      : `rgba(${rng.int(96, 148)},${rng.int(88, 134)},${rng.int(74, 114)},0.6)`;
     ctx.beginPath();
-    ctx.arc(x, y, rng.range(0.6, 2.2), 0, Math.PI * 2);
+    ctx.arc(x, y, rng.range(0.7, 2.8), 0, Math.PI * 2);
     ctx.fill();
+  }
+  // Cart ruts and drag marks: long, faint, and they give the ground direction.
+  for (let i = 0; i < 10; i++) {
+    const y = rng.range(0, SIZE);
+    ctx.strokeStyle = `rgba(30,26,20,${rng.range(0.1, 0.26)})`;
+    ctx.lineWidth = rng.range(2, 7);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    for (let x = 0; x <= SIZE; x += 32) ctx.lineTo(x, y + rng.range(-5, 5));
+    ctx.stroke();
   }
 
   rctx.fillStyle = rgb(240, 240, 240);

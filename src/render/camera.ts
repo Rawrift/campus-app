@@ -40,7 +40,7 @@ export interface CameraSettings {
  * top-down map and a shallower one would hide the floor the fight happens on.
  */
 export const DEFAULT_CAMERA: CameraSettings = {
-  distance: 15.5,
+  distance: 14.5,
   minDistance: 11,
   maxDistance: 21,
   pitch: 38 * (Math.PI / 180),

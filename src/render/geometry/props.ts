@@ -237,7 +237,7 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
   },
   corpse_covered: (rng, g) => {
     // Under a sheet, laid out properly. Somebody cared, and then stopped.
-    const sheet = cloth(rng, 0x8e8677);
+    const sheet = cloth(rng, 0x6a6458);
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 1.1, 4, 8), sheet);
     body.rotation.z = Math.PI / 2;
     body.position.y = 0.2;
@@ -332,13 +332,14 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
   },
   ritual_mark: (rng, g) => {
     // Drawn flat on the ground, additively blended so it glows faintly.
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 20), emissive(0x8a6a4a, 0.5));
+    const ash = emissive(0x6a5238, 0.3, THREE.NormalBlending);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 20), ash);
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.02;
     g.add(ring);
     for (let i = 0; i < 5; i++) {
       const a = (i / 5) * TAU + rng.range(0, 1);
-      const bar = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.3), emissive(0x8a6a4a, 0.45));
+      const bar = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.3), ash);
       bar.rotation.x = -Math.PI / 2;
       bar.rotation.z = -a;
       bar.position.set(Math.cos(a) * 0.34, 0.021, Math.sin(a) * 0.34);
@@ -416,10 +417,23 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
   tree_sick: (rng, g) => {
     BUILDERS.tree_dead!(rng, g);
     // Sparse, sickly foliage: desaturated, never green enough to look healthy.
-    const leaf = material('cloth', 0x4e5436, rng.int(0, 999), { transparent: true, opacity: 0.9, side: THREE.DoubleSide });
-    for (let i = 0; i < rng.int(3, 7); i++) {
-      const clump = new THREE.Mesh(new THREE.IcosahedronGeometry(rng.range(0.35, 0.6), 0), leaf);
-      clump.position.set(rng.range(-1.1, 1.1), rng.range(2.4, 3.8), rng.range(-1.1, 1.1));
+    // Clumps hug the upper trunk rather than floating free, and are flattened
+    // and irregular so they read as foliage instead of as rocks in mid-air.
+    const leaf = material('cloth', 0x3f4630, rng.int(0, 999), {
+      transparent: true, opacity: 0.92, side: THREE.DoubleSide, flatShading: true,
+    });
+    const clumps = rng.int(4, 8);
+    for (let i = 0; i < clumps; i++) {
+      const a = (i / clumps) * TAU + rng.range(-0.4, 0.4);
+      const spread = rng.range(0.25, 0.75);
+      const clump = new THREE.Mesh(new THREE.IcosahedronGeometry(rng.range(0.3, 0.52), 0), leaf);
+      clump.position.set(
+        Math.cos(a) * spread,
+        rng.range(2.1, 3.2),
+        Math.sin(a) * spread,
+      );
+      clump.rotation.set(rng.range(0, TAU), rng.range(0, TAU), rng.range(0, TAU));
+      clump.scale.set(rng.range(1.0, 1.5), rng.range(0.5, 0.75), rng.range(1.0, 1.5));
       clump.castShadow = true;
       g.add(clump);
     }

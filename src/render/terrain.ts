@@ -15,7 +15,6 @@ import { NavGrid, Tile } from '@/sim/world';
 import { material } from './materials';
 import type { Ambience } from '@/world/zoneDef';
 
-const WALL_HEIGHT = 3.0;
 
 interface Buffers {
   positions: number[];
@@ -48,6 +47,16 @@ function quad(
   b.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
 }
 
+/**
+ * How many world tiles one texture repeat spans.
+ *
+ * At 1 tile per repeat the 256px texture covers about 20 screen pixels at the
+ * game's camera distance, so every surface detail falls below a pixel and the
+ * ground renders as flat grey. Spreading each repeat over 4 tiles puts the
+ * grain, gravel and mortar joints at a size the player can actually see.
+ */
+const TILES_PER_TEXTURE = 4;
+
 function toGeometry(b: Buffers): THREE.BufferGeometry {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(b.positions, 3));
@@ -70,6 +79,7 @@ export interface TerrainResult {
 export function buildTerrain(grid: NavGrid, ambience: Ambience, seed: number): TerrainResult {
   const group = new THREE.Group();
   const rng = new Rng(seed);
+  const WALL_HEIGHT = ambience.wallHeight;
 
   const floorB = newBuffers();
   const pathB = newBuffers();
@@ -89,10 +99,11 @@ export function buildTerrain(grid: NavGrid, ambience: Ambience, seed: number): T
         // A little per-tile height variation so the ground is not a table.
         const h = tile === Tile.Mire ? -0.06 : rng.range(-0.018, 0.018);
         const target = tile === Tile.Path ? pathB : tile === Tile.Mire ? mireB : floorB;
+        const u = 1 / TILES_PER_TEXTURE;
         quad(
           target,
           [x0, h, z0], [x1, h, z0], [x1, h, z1], [x0, h, z1],
-          [0, 1, 0], 1, tx % 4, ty % 4,
+          [0, 1, 0], u, tx * u, ty * u,
         );
         continue;
       }
@@ -100,10 +111,11 @@ export function buildTerrain(grid: NavGrid, ambience: Ambience, seed: number): T
       if (tile !== Tile.Wall && tile !== Tile.Prop) continue;
 
       // Wall top, only when it is visible from above (always, at this camera).
+      const u = 1 / TILES_PER_TEXTURE;
       quad(
         wallTopB,
         [x0, WALL_HEIGHT, z0], [x1, WALL_HEIGHT, z0], [x1, WALL_HEIGHT, z1], [x0, WALL_HEIGHT, z1],
-        [0, 1, 0], 1, tx % 4, ty % 4,
+        [0, 1, 0], u, tx * u, ty * u,
       );
 
       // Sides, only where they face walkable ground.
@@ -115,10 +127,12 @@ export function buildTerrain(grid: NavGrid, ambience: Ambience, seed: number): T
       ];
       for (const [dx, dy, corners, normal] of faces) {
         if (!grid.walkable(tx + dx, ty + dy)) continue;
+        // Walls are 3 units tall, so their vertical UV covers most of a repeat
+        // and the mortar courses read at roughly the right physical scale.
         quad(
           wallSideB,
           corners[0]!, corners[1]!, corners[2]!, corners[3]!,
-          normal, 1, tx % 4, 0,
+          normal, 0.75, (tx % 4) * 0.75, 0,
         );
       }
     }
