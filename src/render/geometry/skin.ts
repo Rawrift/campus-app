@@ -138,8 +138,11 @@ export class SkinBinder {
     this.root.updateMatrixWorld(true);
     const rootInverse = new THREE.Matrix4().copy(this.root.matrixWorld).invert();
 
-    const baked: THREE.BufferGeometry[] = [];
-    const materials: THREE.Material[] = [];
+    // Grouped by material, not by part: `mergeGeometries` emits one draw group
+    // per input geometry, so submitting six body parts that share three
+    // materials would cost six draw calls per character. With 28 actors on
+    // screen that difference is the frame budget.
+    const byMaterial = new Map<THREE.Material, THREE.BufferGeometry[]>();
 
     for (const part of this.parts) {
       const geo = part.geometry.index ? part.geometry.toNonIndexed() : part.geometry.clone();
@@ -154,8 +157,19 @@ export class SkinBinder {
       geo.computeVertexNormals();
 
       this.weigh(geo, part.allowed);
-      baked.push(geo);
-      materials.push(part.material);
+      const bucket = byMaterial.get(part.material);
+      if (bucket) bucket.push(geo);
+      else byMaterial.set(part.material, [geo]);
+    }
+
+    const baked: THREE.BufferGeometry[] = [];
+    const materials: THREE.Material[] = [];
+    for (const [mat, geos] of byMaterial) {
+      const one = geos.length === 1 ? geos[0]! : mergeGeometries(geos, false);
+      if (!one) continue;
+      if (geos.length > 1) for (const g of geos) g.dispose();
+      baked.push(one);
+      materials.push(mat);
     }
 
     // `true` groups by input geometry, so one mesh carries every material.

@@ -18,18 +18,35 @@ import { material, emissive } from '../materials';
 import { loft, shell, type Section } from './loft';
 import type { EnemyVisual } from '@/sim/enemyDef';
 import type { AnimState } from './character';
+import { SkinBinder, type BoneSpan } from './skin';
 
 export class EnemyRig {
   readonly root = new THREE.Group();
   /** Parts the animator rotates. Named loosely; not every plan has all of them. */
-  private torso = new THREE.Group();
-  private head = new THREE.Group();
-  private armL = new THREE.Group();
-  private armR = new THREE.Group();
-  private legL = new THREE.Group();
-  private legR = new THREE.Group();
+  private torso = new THREE.Bone();
+  private head = new THREE.Bone();
+  private armL = new THREE.Bone();
+  private armR = new THREE.Bone();
+  private legL = new THREE.Bone();
+  private legR = new THREE.Bone();
+  /*
+   * Mid-limb joints.
+   *
+   * Every plan used to build an arm or a leg as one loft running the whole
+   * length of the limb, rotating about the shoulder or hip. A limb that cannot
+   * bend is the clearest possible statement that a thing is not alive -- at
+   * ARPG distance a bending knee is the strongest readability cue a walking
+   * creature has, and a straight one reads as a stilt. These are the elbows and
+   * knees; the limb is skinned across them so it bends rather than hinging.
+   */
+  private foreL = new THREE.Bone();
+  private foreR = new THREE.Bone();
+  private shinL = new THREE.Bone();
+  private shinR = new THREE.Bone();
   private eliteCrest = new THREE.Group();
   private meshes: THREE.Mesh[] = [];
+  private binder: SkinBinder;
+  private skinned: THREE.SkinnedMesh | null = null;
 
   private phase: number;
   private state: AnimState = 'idle';
@@ -43,8 +60,37 @@ export class EnemyRig {
     this.phase = rng.range(0, TAU);
     this.root.scale.setScalar(visual.scale);
     this.root.add(this.torso);
+    this.binder = new SkinBinder(this.root);
     this.build(rng);
+    this.bindSkin();
     this.mergeStatic();
+  }
+
+  /**
+   * Binds everything the plan submitted as skin.
+   *
+   * Runs after `build`, because the spans have to be measured from the bones
+   * where the plan actually put them -- limb lengths and joint heights differ
+   * per body plan, and a span measured before placement binds the whole limb to
+   * the shoulder.
+   */
+  private bindSkin(): void {
+    const tip = (y: number, z = 0) => new THREE.Vector3(0, y, z);
+    const spans: Record<string, BoneSpan> = {
+      torso: { bone: this.torso, tip: tip(0.34) },
+      head: { bone: this.head, tip: tip(0.1) },
+      armL: { bone: this.armL, tip: tip(this.foreL.position.y) },
+      armR: { bone: this.armR, tip: tip(this.foreR.position.y) },
+      foreL: { bone: this.foreL, tip: tip(this.foreL.userData.length as number ?? -0.3) },
+      foreR: { bone: this.foreR, tip: tip(this.foreR.userData.length as number ?? -0.3) },
+      legL: { bone: this.legL, tip: tip(this.shinL.position.y) },
+      legR: { bone: this.legR, tip: tip(this.shinR.position.y) },
+      shinL: { bone: this.shinL, tip: tip(this.shinL.userData.length as number ?? -0.3) },
+      shinR: { bone: this.shinR, tip: tip(this.shinR.userData.length as number ?? -0.3) },
+    };
+    this.binder.setSkeleton(spans);
+    this.skinned = this.binder.build();
+    if (this.skinned) this.meshes.push(this.skinned);
   }
 
   /**
@@ -120,6 +166,36 @@ export class EnemyRig {
     this.meshes = merged;
   }
 
+  /**
+   * Builds one limb as a single skinned form spanning a mid joint.
+   *
+   * The sections are authored exactly as before, running from the shoulder or
+   * hip down to the hand or foot. What changes is that the loft is bound across
+   * an elbow or knee placed partway down it, so bending the joint bends the
+   * surface instead of sliding two sticks past each other.
+   */
+  private limb(
+    rootBone: THREE.Bone, midBone: THREE.Bone, sections: Section[],
+    mat: THREE.Material, names: [string, string],
+    opts: { radial?: number; dome?: boolean; bendAt?: number } = {},
+  ): void {
+    const top = sections[0]!.y;
+    const bottom = sections[sections.length - 1]!.y;
+    // Elbows and knees sit a little above halfway: the upper arm is shorter
+    // than the forearm, and the thigh than the shin, on nearly every animal.
+    const bend = top + (bottom - top) * (opts.bendAt ?? 0.46);
+    midBone.position.y = bend;
+    midBone.userData.length = bottom - bend;
+    rootBone.add(midBone);
+
+    this.binder.add(
+      loft(sections, {
+        radialSegments: opts.radial ?? 10, smoothSteps: 3, domeEnd: opts.dome,
+      }),
+      rootBone, mat, [names[0], names[1], 'torso'],
+    );
+  }
+
   private mesh(parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, y = 0, x = 0, z = 0): THREE.Mesh {
     const m = new THREE.Mesh(geo, mat);
     m.position.set(x, y, z);
@@ -140,17 +216,40 @@ export class EnemyRig {
       ? material('bone', v.accent, seed + 4, { emissive: v.accent, emissiveIntensity: v.glow * 0.5 })
       : accent;
 
-    /** Adds a lofted part; the helper keeps the body-plan code readable. */
+    // Which mid joint and span names belong to each limb bone. Routing through
+    // this map means the seven body plans below need no edits to gain elbows
+    // and knees: they already say which bone a limb hangs from.
+    const limbs = new Map<THREE.Object3D, [THREE.Bone, string, string]>([
+      [this.armL, [this.foreL, 'armL', 'foreL']],
+      [this.armR, [this.foreR, 'armR', 'foreR']],
+      [this.legL, [this.shinL, 'legL', 'shinL']],
+      [this.legR, [this.shinR, 'legR', 'shinR']],
+    ]);
+
+    /**
+     * Adds a lofted part. Body parts are submitted as skin rather than built as
+     * meshes, so the surface stays continuous where two bones meet; a limb is
+     * routed through `limb` so it bends at a mid joint instead of hinging at
+     * the shoulder or hip.
+     */
     const part = (
       parent: THREE.Object3D, sections: Section[], mat: THREE.Material,
       opts: { radial?: number; dome?: boolean; y?: number } = {},
-    ) => this.mesh(
-      parent,
-      loft(sections, {
-        radialSegments: opts.radial ?? 12, smoothSteps: 3, domeEnd: opts.dome,
-      }),
-      mat, opts.y ?? 0,
-    );
+    ): void => {
+      const limb = limbs.get(parent);
+      if (limb) {
+        this.limb(parent as THREE.Bone, limb[0], sections, mat, [limb[1], limb[2]], opts);
+        return;
+      }
+      const allowed = parent === this.head ? ['head', 'torso'] : ['torso', 'head'];
+      this.binder.add(
+        loft(sections, {
+          radialSegments: opts.radial ?? 12, smoothSteps: 3, domeEnd: opts.dome,
+        }),
+        parent, mat, allowed,
+        opts.y ? new THREE.Matrix4().makeTranslation(0, opts.y, 0) : undefined,
+      );
+    };
 
     switch (v.build) {
       // --- gaunt: tall, thin, long arms. Reads as "fast and fragile". -------
@@ -318,7 +417,7 @@ export class EnemyRig {
           ear.rotation.z = side * 0.35;
         }
 
-        const legs: [THREE.Group, number, number][] = [
+        const legs: [THREE.Bone, number, number][] = [
           [this.armL, -0.13, 0.30], [this.armR, 0.13, 0.30],
           [this.legL, -0.13, -0.30], [this.legR, 0.13, -0.30],
         ];
@@ -664,10 +763,14 @@ export class EnemyRig {
 
   setTint(colour: number, amount: number): void {
     for (const mesh of this.meshes) {
-      const mat = mesh.material as THREE.MeshStandardMaterial;
-      if (!mat.emissive) continue;
-      mat.emissive.setHex(colour);
-      mat.emissiveIntensity = amount;
+      // The body is one skinned mesh carrying a material per submitted part.
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const m of mats) {
+        const mat = m as THREE.MeshStandardMaterial;
+        if (!mat.emissive) continue;
+        mat.emissive.setHex(colour);
+        mat.emissiveIntensity = amount;
+      }
     }
   }
 
@@ -689,10 +792,20 @@ export class EnemyRig {
     } else {
       this.legL.rotation.x = damp(this.legL.rotation.x, -swing * 0.8, k, dt);
       this.legR.rotation.x = damp(this.legR.rotation.x, swing * 0.8, k, dt);
+      // The knee flexes through the swing phase and straightens to take the
+      // weight. It is the cue that carries furthest: at ARPG distance a leg
+      // that stays straight through a stride reads as a stilt, not a leg.
+      // `shin` damps slower than `leg` so the lower limb trails the thigh.
+      this.shinL.rotation.x = damp(this.shinL.rotation.x, Math.max(0, swing) * 0.85, 0.006, dt);
+      this.shinR.rotation.x = damp(this.shinR.rotation.x, Math.max(0, -swing) * 0.85, 0.006, dt);
       if (this.visual.build === 'quadruped') {
         // Diagonal gait, so it does not hop like a pantomime horse.
         this.armL.rotation.x = damp(this.armL.rotation.x, swing * 0.8, k, dt);
         this.armR.rotation.x = damp(this.armR.rotation.x, -swing * 0.8, k, dt);
+        // Forelegs bend the other way at the carpus, which is most of what
+        // stops a four-legged walk reading as a table sliding along.
+        this.foreL.rotation.x = damp(this.foreL.rotation.x, -Math.max(0, swing) * 0.7, 0.006, dt);
+        this.foreR.rotation.x = damp(this.foreR.rotation.x, -Math.max(0, -swing) * 0.7, 0.006, dt);
       }
       this.torso.position.y = damp(
         this.torso.position.y,
@@ -740,6 +853,14 @@ export class EnemyRig {
     if (this.visual.build !== 'quadruped' && this.visual.build !== 'wisp') {
       this.armR.rotation.x = damp(this.armR.rotation.x, armTarget, k, dt);
       this.armL.rotation.x = damp(this.armL.rotation.x, armTarget * 0.45 + swing * 0.3, k, dt);
+      // The elbow closes hardest at the top of a wind-up and opens through the
+      // strike, so the weapon travels further than the shoulder alone could
+      // carry it. Damped slower than the shoulder: the forearm arrives late.
+      const elbow = this.state === 'windup' ? -0.9 - 0.7 * t
+        : this.state === 'strike' ? -1.2 + 1.1 * Math.min(1, t * 1.7)
+        : -0.28;
+      this.foreR.rotation.x = damp(this.foreR.rotation.x, elbow, 0.01, dt);
+      this.foreL.rotation.x = damp(this.foreL.rotation.x, elbow * 0.4 - 0.15, 0.01, dt);
     }
     this.torso.rotation.x = damp(this.torso.rotation.x, torsoTarget, k, dt);
     this.head.rotation.x = damp(this.head.rotation.x, -torsoTarget * 0.5, k, dt);

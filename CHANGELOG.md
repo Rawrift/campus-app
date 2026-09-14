@@ -1,5 +1,62 @@
 # CHANGELOG
 
+## 0.4.0 — Bodies instead of puppets
+
+The rig was the clearest thing left between this and the reference: the parts
+moved, the body did not.
+
+### The body is skinned
+
+Both rigs — the player and all seven enemy body plans — are now one
+`SkinnedMesh` bound to the joint hierarchy, instead of rigid segments parented
+to it. A rigid upper arm and a rigid forearm cannot share a surface, so every
+bent elbow, knee, waist and neck was a seam where two solids slid through each
+other. At ARPG distance that does not read as low detail, it reads as *puppet*.
+
+Armour, hair and weapons stay rigid and parented to bones. That is not a
+compromise in either direction: a pauldron genuinely does not deform, and
+keeping it off the skin leaves a live armour swap a single `add`/`remove` with
+no rebinding.
+
+Weights are computed rather than painted (`render/geometry/skin.ts`). Each part
+is submitted with the short list of bones it is *allowed* to bind to — a thigh
+may bind to its own hip and knee and to the pelvis, never to the other thigh —
+which is the one real advantage of generating every mesh in code. Generic
+nearest-bone auto-weighting has no way to know that and pinches the crotch and
+the armpits every time. Influence falls off from a bone's line segment rather
+than its origin, because binding to points pinches each limb at its middle.
+
+### Enemies got elbows and knees
+
+Every body plan built an arm or a leg as one loft running the limb's whole
+length, rotating about the shoulder or hip. A limb that cannot bend is the
+clearest possible statement that a thing is not alive, and at ARPG distance a
+bending knee is the strongest readability cue a walking creature has. Each limb
+now spans a mid joint, placed a little above halfway because the upper arm is
+shorter than the forearm and the thigh than the shin on nearly every animal.
+The knee flexes through the swing phase and straightens to take the weight; the
+elbow closes at the top of a wind-up and opens through the strike.
+
+### Joint timing
+
+Every joint used to be damped toward its target at one rate, so the whole body
+started and stopped on the same frame and moved as one rigid unit that happened
+to be hinged. Stiffness is now per joint, running from the pelvis (fastest,
+leads) out to the hands, feet and head (slowest, settle last) — follow-through
+and overlapping action, which is most of the difference between a hinged shape
+and a body.
+
+The walk cycle got the mechanics that were missing with it: lateral weight
+shift onto the standing leg, pelvic drop on the swing side, pelvis and
+shoulders counter-rotating with the shoulders leading, arms tucking in as the
+pace rises, and a head that holds its heading against the shoulder twist.
+
+### Draw calls
+
+`mergeGeometries` emits one draw group per input geometry, so six body parts
+sharing three materials would have cost six draw calls per character. Parts are
+merged by material first, which with 28 actors on screen is the frame budget.
+
 ## 0.3.0 — The world becomes visible
 
 A pass on visual fidelity, prompted by the honest verdict that the game so far

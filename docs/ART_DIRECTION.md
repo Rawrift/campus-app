@@ -110,7 +110,7 @@ seams, repairs, dirt, soot.
 
 ### The modular rig
 
-Nested joint `Group`s rather than a skinned mesh, with attachment points for:
+One skinned body bound to a joint hierarchy, with rigid attachment points for:
 
 `helmet` · `torsoArmour` · `shoulders` · `gloves` · `belt` · `legs` · `boots` ·
 `cloak` · `mainHand` · `offHand`

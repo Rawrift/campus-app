@@ -125,12 +125,24 @@ albedo **and a correlated roughness map**: scratches are lighter *and* smoother,
 rust is darker *and* rougher. That correlation is most of what separates a
 believable surface from a tinted plane.
 
-`geometry/character.ts` is a rig of nested `Group`s rather than a skinned mesh.
-That is a deliberate trade: skinning deforms better, but this project generates
-every mesh at runtime and swaps armour live, and rigid segments parented to
-joints make that swap an `add`/`remove` with no skeleton rebinding and no risk
-of binding a new piece to the wrong bone. At ARPG camera distance the difference
-is invisible; the robustness is not.
+`geometry/character.ts` and `geometry/enemies.ts` build a body as one
+`SkinnedMesh` bound to a joint hierarchy, with armour, hair and weapons left
+rigid and parented to bones. The split is not a compromise in either direction:
+skin and cloth have to stretch across a bent elbow or the two halves of a limb
+visibly slide through each other, while a pauldron or a greave genuinely does
+not deform — and keeping armour off the skin leaves a live swap an
+`add`/`remove` with no rebinding and no risk of binding a new piece to the wrong
+bone.
+
+`geometry/skin.ts` computes the weights rather than shipping painted ones. Each
+part is submitted with the short list of bones it may bind to, which is the one
+real advantage of generating every mesh in code: a vertex on the left thigh
+cannot pick up weight from the right one however close they sit, where generic
+nearest-bone auto-weighting has no way to know that. Influence falls off from a
+bone's line segment, not its origin — binding to points pinches every limb at
+its middle. Parts are merged by material before the groups are built, because
+`mergeGeometries` emits one draw group per input geometry and six body parts
+sharing three materials would otherwise cost six draw calls per character.
 
 `terrain.ts` merges the whole level into a handful of geometries and emits wall
 faces only where a wall touches walkable ground.
