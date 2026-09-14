@@ -14,10 +14,11 @@
     "smoke": "node tools/smoke.mjs"
   },
   "devDependencies": {
+    "@types/three": "^0.169.0",
+    "playwright": "^1.48.2",
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
-    "vitest": "^2.1.4",
-    "playwright": "^1.48.2"
+    "vitest": "^2.1.4"
   },
   "dependencies": {
     "three": "^0.169.0"
