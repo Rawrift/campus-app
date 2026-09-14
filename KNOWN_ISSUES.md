@@ -21,7 +21,7 @@ the architecture is built to accept them later.
 | **Difficulty tiers / NG+** | Not implemented | `Zone.spawn` already accepts a level override and scales stats, which is the mechanism such a mode would use. |
 | **Multiplayer** | Not implemented | The simulation is deterministic, seeded and rendering-free, so it is not precluded. No netcode exists. |
 | **Rebindable controls** | Table exists, no UI | `Input.rebind()` works; nothing calls it from a settings screen. |
-| **Dismemberment** | Not implemented | Gore is blood, decals and corpses. The brief lists limb loss as "if technically viable"; with procedurally built rigid rigs it is viable but was not worth the time against other priorities. |
+| **Dismemberment** | Not implemented | Gore is blood, decals and corpses. The brief lists limb loss as "if technically viable"; now that the bodies are skinned rather than rigid it is *harder* than it was, since a limb is no longer a separable mesh -- it would mean a second bound mesh per severable part. Still not worth the time against other priorities. |
 | **Dodge roll** | Only as a skill | The Pallwalker's Slip is the dodge. There is no universal dodge button; the brief listed one as conditional on it fitting the combat, and a committed-attack design reads better without one. |
 
 ---
@@ -51,12 +51,25 @@ Implemented and available in the options, off by default. See the changelog for
 the measurement.
 
 ### Performance in software rendering is not representative
-`npm run smoke` reports ~340 ms median frames. That is SwiftShader software
-rasterisation with **no GPU at all** — the only renderer available in the
-verification environment. It measures stability and draw-call budget, not real
-performance. On hardware the same scene is ~720 draw calls and ~19k triangles,
-which is a comfortable 60 FPS budget, but **this has not been measured on a real
-GPU**, and that claim should be treated as an estimate rather than a result.
+`npm run smoke` reports median frames close to a second. That is SwiftShader
+software rasterisation with **no GPU at all** — the only renderer available in
+the verification environment. It measures stability and draw-call budget, not
+real performance. The same scene is ~545 draw calls with 28 actors, which should
+be a comfortable 60 FPS budget on hardware, but **this has not been measured on
+a real GPU** and that should be treated as an estimate rather than a result.
+
+Skinning made this worse in a way worth naming: vertex skinning is per-vertex
+work on every frame, and a software rasteriser does it on the CPU with no
+parallelism, so the measured frame time rose sharply when the rigs were bound.
+On a GPU the same work is close to free. The number that *is* meaningful is the
+vertex count, which is why the binder keeps its geometry indexed — de-indexing
+to satisfy `mergeGeometries` roughly tripled it.
+
+Because the frame time is this long, the clock's spiral-of-death guard caps how
+many fixed simulation steps a frame may catch up, so the game runs in slow
+motion here. Any smoke check that waits for the simulation to reach a state must
+wait on that state, not on wall-clock — one of them did not, and failed on a
+game that was working fine, just slowly.
 
 ### Draw calls scale with prop count, not with screen area
 Props are cloned per instance rather than instanced, so a dense zone costs a
