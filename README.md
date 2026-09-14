@@ -5,7 +5,14 @@ third-party assets of any kind.
 
 > **Working title:** PROJECT CHACOX. The project is now named for its setting.
 
-![The Ossuary](screenshots/shot-ossuary.png)
+| | |
+| --- | --- |
+| ![The Ossuary of the Ninth Bell](docs/images/ossuary.png) | ![A fight in the nave](docs/images/combat.png) |
+| *The Ossuary of the Ninth Bell* | *A fight in the nave* |
+| ![Grestwick Mill](docs/images/hub.png) | ![Equipped plate](docs/images/equipment.png) |
+| *Grestwick Mill, the hub* | *Equipment is visible on the character* |
+
+All four images are the game's own output, captured by `node tools/shots.mjs`.
 
 ---
 
