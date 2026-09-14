@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "smoke": "node tools/smoke.mjs"
+    "smoke": "node tools/smoke.mjs",
+    "shots": "node tools/shots.mjs",
+    "build:hosted": "npm run build && node tools/build-hosted.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.169.0",

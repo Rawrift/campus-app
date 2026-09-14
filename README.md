@@ -16,25 +16,39 @@ All four images are the game's own output, captured by `node tools/shots.mjs`.
 
 ---
 
-## Quick start
+## Play it
 
 ```bash
 npm install
+npm run build:hosted
+# then open dist-single/ossuan.html
+```
+
+That produces a **single ~780 KB HTML file** with the whole game inlined.
+Double-click it — no server, no install, no network. It is verified to boot and
+play straight off disk.
+
+To develop instead:
+
+```bash
 npm run dev          # http://127.0.0.1:5173
 ```
 
-That is the whole setup. There is no engine to install, no asset download, and
-no platform build step — the game runs in any browser with WebGL 2.
+There is no engine to install, no asset download and no platform build step —
+the game runs in any browser with WebGL 2. See
+**[docs/HOSTING.md](docs/HOSTING.md)** for deploying it, including the
+GitHub Pages workflow that ships with the repository.
 
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Development server with hot reload |
 | `npm run build` | Typecheck, then produce a static build in `dist/` |
 | `npm run preview` | Serve the production build on port 4173 |
-| `npm test` | 106 unit/integration tests over the simulation (headless, no browser) |
+| `npm test` | 115 tests over the simulation, including an automated playthrough (headless, no browser) |
 | `npm run typecheck` | TypeScript only |
-| `npm run smoke` | **Boots the real build in headless Chromium and plays it**, checking 44 runtime behaviours and writing screenshots |
-| `node tools/shots.mjs` | Capture beauty shots of specific scenarios |
+| `npm run smoke` | **Boots the real build in headless Chromium and plays it**, checking 45 runtime behaviours and writing screenshots |
+| `npm run shots` | Capture beauty shots of specific scenarios |
+| `npm run build:hosted` | Single-file and artifact builds for hosting |
 
 To deploy, run `npm run build` and serve `dist/` as static files. There is no
 backend.

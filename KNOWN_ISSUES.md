@@ -28,6 +28,18 @@ the architecture is built to accept them later.
 
 ## Known defects
 
+### Nobody has played it
+Still the honest headline limitation. An automated bot now plays the full route
+and the boss as all three archetypes, which proves the run is completable and
+caught two real balance faults — but a bot uses potions perfectly, never
+mis-clicks and never panics. It recorded **zero deaths**, which almost certainly
+means the game is easier for it than for a person, and says nothing about
+whether the combat *feels* good.
+
+### Torch shadows cost a third of the frame for almost nothing
+Implemented and available in the options, off by default. See the changelog for
+the measurement.
+
 ### Performance in software rendering is not representative
 `npm run smoke` reports ~340 ms median frames. That is SwiftShader software
 rasterisation with **no GPU at all** — the only renderer available in the
@@ -57,10 +69,6 @@ Around a long L-shaped corridor they can press against a wall until the player
 moves into line of sight. This is a deliberate trade (thirty A* queries a frame,
 plus robotic-looking perfect pathing), but it is visible in the dungeon's
 tighter corridors.
-
-### Ward charges are not surfaced in the HUD
-`fx_ward_charge` accumulates charges and discharges them correctly, but there is
-no counter on screen, so the player cannot see how close they are.
 
 ### The stash count is the only feedback on a full bag
 When the pack is full, pickup fails with a notification, but there is no

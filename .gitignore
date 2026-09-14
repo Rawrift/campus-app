@@ -4,3 +4,5 @@ dist/
 *.log
 screenshots/
 .DS_Store
+dist-artifact/
+dist-single/

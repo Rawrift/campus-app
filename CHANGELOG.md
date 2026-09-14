@@ -1,5 +1,53 @@
 # CHANGELOG
 
+## 0.2.0 — Playable build
+
+Hosting, plus the balance work that only became possible once the game could
+actually be measured being played.
+
+### Hosting
+- `npm run build:hosted` produces a **single self-contained HTML file**
+  (~780 KB) that boots and plays straight off disk, verified from `file://`.
+- A GitHub Pages workflow that builds, runs the tests, and deploys on push.
+  The deploy is gated on `npm test`, so a build that fails its own tests never
+  becomes the thing people play.
+- `docs/HOSTING.md` covers the four options, and why PlayCanvas is not one of
+  them: it hosts PlayCanvas *projects*, not arbitrary WebGL builds, so using it
+  would mean rewriting the ~5,000 lines of Three.js and DOM presentation code
+  rather than deploying what exists.
+
+### Balance, measured rather than assumed
+An automated playthrough (`tests/playthrough.test.ts`) plays the real game
+through the Marches and the boss as all three archetypes, using only the public
+player API. It found two genuine problems:
+
+- **The Ashen was resource-starved.** Its opener cost 6 Ember against a 3.2/s
+  regeneration, throttling it to roughly a quarter of the melee archetypes'
+  sustained damage. Openers are now free for every archetype, which is also
+  what the other two already did.
+- **The Pallwalker's opener was a third weaker** than the others. Raised from a
+  0.62 to a 0.72 coefficient.
+
+Measured spread across the three openers is now 1.28x, down from unbounded.
+A run reaches level 5-6 crossing the Marches and kills the boss in 32-88s.
+
+### Quality of life
+- The essential controls are on the start screen, instead of only in a menu a
+  new player has no reason to open.
+- Ward charges from the reliquary effect now show as pips on the HUD; they
+  accumulated invisibly before.
+- The HUD is hidden behind full-screen menus rather than glowing faintly
+  through them.
+
+### Torch shadows: implemented, measured, and left off
+Shadow-casting torchlight was the single largest atmosphere upgrade identified
+in the audit. It is implemented — a fixed pool of two lamps that borrow the
+nearest torches, so the shadow-caster count never changes and no shader
+recompile is triggered — and it is **off by default**, because measuring it
+showed it costs about a third of the frame and changes almost nothing: the
+geometry near a torch is bones, candles and rubble, all too low to throw a
+shadow from a light 1.5 units up. The option is kept for strong hardware.
+
 ## 0.1.0 — Vertical slice "The Ninth Bell"
 
 The first playable build. Verified by `npm test` (106 tests) and

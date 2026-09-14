@@ -131,6 +131,27 @@ const SCENES = [
     },
   },
   {
+    name: 'torch-shadows-off',
+    setup: async (page) => {
+      await page.evaluate(() => window.__OSSUAN.api.travelTo('ossuary'));
+      await delay(2200);
+      await page.evaluate(() => {
+        const p = window.__OSSUAN.api.player().actor;
+        p.x = 14; p.y = 48;
+        window.__OSSUAN.game.scene.cameraRig.snapTo(14, 48);
+        window.__OSSUAN.api.setTorchShadows(false);
+      });
+      await delay(1800);
+    },
+  },
+  {
+    name: 'torch-shadows-on',
+    setup: async (page) => {
+      await page.evaluate(() => window.__OSSUAN.api.setTorchShadows(true));
+      await delay(1800);
+    },
+  },
+  {
     name: 'boss',
     setup: async (page) => {
       await page.evaluate(() => {

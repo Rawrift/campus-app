@@ -135,7 +135,9 @@ export const SKILLS = new Registry<SkillDef>('skills', [
     windup: 0.10, strike: 0.08, recover: 0.16, scalesWithAttackSpeed: true,
     animation: 'stab_fast', tags: ['melee', 'physical'],
     shape: { kind: 'melee_arc', radius: 1.9, halfAngle: 0.75, maxTargets: 2 },
-    damage: { coefficient: 0.62, type: 'physical', useWeapon: true },
+    // Raised from 0.62: the opener is the button a player presses most, and at
+    // 0.62 it measured a third below the other archetypes' openers.
+    damage: { coefficient: 0.72, type: 'physical', useWeapon: true },
     staggerPower: 7,
     rankDamageGrowth: 0.18, colour: 0x8fa37e,
   },
@@ -233,13 +235,17 @@ export const SKILLS = new Registry<SkillDef>('skills', [
   // ======================================================================
   {
     id: 'ash_bolt', name: 'Ember Bolt',
-    description: 'A knot of burning ash, thrown. Cheap, and it never stops being useful.',
+    description: 'A knot of burning ash, thrown. Costs nothing but the breath to light it.',
     icon: 'EB', archetype: 'ashen', requiredLevel: 1, maxRank: 5,
-    resourceCost: 6, cooldown: 0,
-    windup: 0.22, strike: 0.06, recover: 0.20, scalesWithAttackSpeed: true,
+    // Free, like the other two archetypes' openers. It cost 6 Ember against a
+    // 3.2/s regeneration, which throttled the Ashen to roughly a quarter of
+    // the sustained damage of the melee archetypes — measured, not guessed, in
+    // tests/playthrough.test.ts. Ember is for the big tools, not for existing.
+    resourceCost: 0, cooldown: 0,
+    windup: 0.26, strike: 0.06, recover: 0.22, scalesWithAttackSpeed: true,
     animation: 'cast_point', tags: ['ranged', 'projectile', 'fire'],
     shape: { kind: 'projectile', speed: 17, count: 1, spread: 0, pierce: 0, radius: 0.36, lifetime: 1.6 },
-    damage: { coefficient: 1.0, type: 'fire', useWeapon: true, spell: true },
+    damage: { coefficient: 0.9, type: 'fire', useWeapon: true, spell: true },
     applies: { kind: 'burn', label: 'Burning', duration: 3, dps: 3, damageType: 'fire', colour: 0xd2762c },
     staggerPower: 6,
     rankDamageGrowth: 0.2, colour: 0xd9772e,

@@ -494,6 +494,37 @@ async function main() {
     });
     console.log(`    ${perf.actors} actors · ${perf.calls} draw calls · ${(perf.tris / 1000).toFixed(0)}k triangles`);
     console.log(`    median frame ${perf.median.toFixed(1)}ms · p95 ${perf.p95.toFixed(1)}ms (SwiftShader, no GPU)`);
+
+    // Measure torch shadows separately: they are six cube-face renders per
+    // lamp, which is cheap on a GPU and brutal on a software rasteriser, so
+    // folding them into one number would misrepresent both.
+    const shadowCost = await page.evaluate(async () => {
+      const measure = async () => {
+        const frames = [];
+        let last = performance.now();
+        await new Promise((resolve) => {
+          let n = 0;
+          const tick = () => {
+            const now = performance.now();
+            frames.push(now - last);
+            last = now;
+            if (++n < 40) requestAnimationFrame(tick); else resolve();
+          };
+          requestAnimationFrame(tick);
+        });
+        frames.sort((a, b) => a - b);
+        return frames[Math.floor(frames.length / 2)];
+      };
+      window.__OSSUAN.api.setTorchShadows(false);
+      const off = await measure();
+      window.__OSSUAN.api.setTorchShadows(true);
+      const on = await measure();
+      window.__OSSUAN.api.setTorchShadows(false);
+      return { off, on };
+    });
+    console.log(`    torch shadows: ${shadowCost.off.toFixed(0)}ms off · ${shadowCost.on.toFixed(0)}ms on`);
+    check('torch shadows can be turned off', shadowCost.off > 0 && shadowCost.on > 0,
+      `${((shadowCost.on / shadowCost.off - 1) * 100).toFixed(0)}% cost on software rendering`);
     check('the renderer stays within a sane draw-call budget under load',
       perf.calls < 900, `${perf.calls} draw calls with ${perf.actors} actors`);
     await shot('13-stress');

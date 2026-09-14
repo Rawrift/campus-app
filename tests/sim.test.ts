@@ -272,21 +272,38 @@ describe('skills', () => {
     const rig = makeRig('ashen', 'skill-1');
     const used = capture(rig.events, 'SKILL_USED');
     rig.zone.spawn('kept_villager', 26, 20);
+    // Openers are free for every archetype, so this measures a costed skill.
+    rig.player.progression.level = 2;
+    rig.player.progression.learn('ash_pyre');
 
     const before = rig.player.actor.resource;
-    expect(rig.player.requestSkill('ash_bolt', 26, 20)).toBe(true);
+    expect(rig.player.requestSkill('ash_pyre', 26, 20)).toBe(true);
     expect(rig.player.actor.resource).toBeLessThan(before);
     expect(used.length).toBe(1);
     expect(rig.player.busy).toBe(true);
 
     // While committed, another cast is refused.
-    expect(rig.player.requestSkill('ash_bolt', 26, 20)).toBe(false);
+    expect(rig.player.requestSkill('ash_pyre', 26, 20)).toBe(false);
   });
 
   it('refuse to fire without enough resource', () => {
     const rig = makeRig('ashen', 'skill-2');
+    rig.player.progression.level = 2;
+    rig.player.progression.learn('ash_pyre');
     rig.player.actor.resource = 0;
-    expect(rig.player.requestSkill('ash_bolt', 26, 20)).toBe(false);
+    expect(rig.player.requestSkill('ash_pyre', 26, 20)).toBe(false);
+  });
+
+  it('every archetype opener is free, so basic attacking is always available', () => {
+    for (const archetype of ['ironbound', 'pallwalker', 'ashen'] as const) {
+      const rig = makeRig(archetype, `free-${archetype}`);
+      const id = rig.player.primarySkillId!;
+      rig.player.actor.resource = 0;
+      expect(
+        rig.player.requestSkill(id, 26, 20),
+        `${archetype}'s opener "${id}" cannot be used at zero resource`,
+      ).toBe(true);
+    }
   });
 
   it('projectile skills spawn projectiles that travel and hit', () => {

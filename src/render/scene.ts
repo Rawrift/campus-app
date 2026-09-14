@@ -90,6 +90,33 @@ export class GameScene {
    * lifting the zone's overall darkness, which stays a mechanic.
    */
   private presence: THREE.PointLight;
+  /**
+   * A small, fixed pool of shadow-casting lamps that borrow the two nearest
+   * torches each frame.
+   *
+   * Torch lights themselves never cast, for two reasons. A zone has dozens of
+   * them and point-light shadows cost six cube faces each; and changing how
+   * many lights cast shadows forces three.js to recompile every material,
+   * which would hitch constantly as the player walks. Keeping the count fixed
+   * at two, and moving them, gives occluded torchlight at a bounded cost.
+   */
+  private shadowLamps: THREE.PointLight[] = [];
+  /** Flicker entries whose own light is muted this frame because it is borrowed. */
+  private borrowed: FlickerLight[] = [];
+  /**
+   * Off by default, and here is the measurement behind that.
+   *
+   * Enabled, torch shadows cost roughly a third of the frame. What they buy in
+   * these rooms is close to nothing: the geometry near a torch is bones,
+   * candles and rubble, all of it low, and a light at 1.5 units above the floor
+   * throws almost no shadow from objects that short. The pillars that would
+   * cast a real shadow are nowhere near the torches.
+   *
+   * The implementation is correct and the option is kept, because on a strong
+   * GPU a third of a 4ms frame is free and the belfry does have tall geometry
+   * near its braziers. It simply does not earn its cost as a default.
+   */
+  torchShadows = false;
   private hemi: THREE.HemisphereLight;
   /** Direction the key light comes from, set per zone. */
   private sunDir = new THREE.Vector3(0.6, 0.8, 0.4);
@@ -151,6 +178,22 @@ export class GameScene {
     this.presence = new THREE.PointLight(0xc4ab88, 26, 16, 1.55);
     this.presence.castShadow = false;
     this.scene.add(this.presence);
+
+    for (let i = 0; i < 2; i++) {
+      const lamp = new THREE.PointLight(0xff9a44, 0, 14, 2);
+      lamp.castShadow = false;
+      // Small maps: these light a few metres of a dim room, and a soft,
+      // slightly noisy shadow suits torchlight better than a crisp one.
+      lamp.shadow.mapSize.set(1024, 1024);
+      // Point-light shadows on large flat floors self-shadow readily. A normal
+      // bias alone handles it without the peter-panning a depth bias causes.
+      lamp.shadow.bias = 0;
+      lamp.shadow.normalBias = 0.14;
+      lamp.shadow.camera.near = 0.5;
+      lamp.shadow.camera.far = 16;
+      this.scene.add(lamp);
+      this.shadowLamps.push(lamp);
+    }
 
     // Click-to-move marker.
     this.moveMarker = new THREE.Mesh(
@@ -609,6 +652,7 @@ export class GameScene {
     // than flattening them with a head-on flash.
     this.presence.position.set(px + this.sunDir.x * 1.6, 3.4, pz + this.sunDir.z * 1.6);
 
+    this.updateShadowLamps(px, pz);
     this.vfx.update(dt);
     this.updateOcclusion(px, pz);
   }
@@ -742,6 +786,62 @@ export class GameScene {
         flame.rotation.y += dt * 2;
       }
       if (f.emit) this.vfx.emit('embers', f.x, f.y, f.z, 9, dt);
+    }
+  }
+
+  /**
+   * Hands the shadow lamps to the two nearest torches.
+   *
+   * The borrowed torch's own light is muted to zero rather than hidden: an
+   * invisible light leaves three.js's light list, which changes the shader
+   * permutation and forces a recompile. Zero intensity keeps the list stable.
+   */
+  private updateShadowLamps(px: number, pz: number): void {
+    for (const f of this.borrowed) f.light.intensity = f.base;
+    this.borrowed.length = 0;
+
+    if (!this.torchShadows) {
+      for (const lamp of this.shadowLamps) lamp.intensity = 0;
+      return;
+    }
+
+    const nearby = this.flickers
+      .map((f) => ({ f, d: (f.x - px) ** 2 + (f.z - pz) ** 2 }))
+      .filter((e) => e.d < 24 * 24)
+      .sort((a, b) => a.d - b.d);
+
+    for (let i = 0; i < this.shadowLamps.length; i++) {
+      const lamp = this.shadowLamps[i]!;
+      const entry = nearby[i];
+      if (!entry) { lamp.intensity = 0; continue; }
+      const f = entry.f;
+      lamp.position.set(f.x, f.y, f.z);
+      lamp.color.copy(f.light.color);
+      lamp.intensity = f.light.intensity;
+      lamp.distance = f.light.distance;
+      lamp.shadow.camera.far = Math.max(6, f.light.distance);
+      // Mute the original so the light is moved, not doubled.
+      f.light.intensity = 0;
+      this.borrowed.push(f);
+    }
+  }
+
+  /**
+   * Toggled by the graphics option and by the automated tests.
+   *
+   * `castShadow` has to be cleared, not just the intensity: three.js renders a
+   * shadow map for every casting light regardless of how bright it is, so
+   * muting the lamp saves nothing. Flipping it forces one material recompile,
+   * which is fine for a setting the player changes occasionally and would not
+   * be fine per frame.
+   */
+  setTorchShadows(enabled: boolean): void {
+    if (this.torchShadows === enabled) return;
+    this.torchShadows = enabled;
+    for (const lamp of this.shadowLamps) {
+      lamp.castShadow = enabled;
+      lamp.shadow.map?.dispose();
+      lamp.shadow.map = null;
     }
   }
 

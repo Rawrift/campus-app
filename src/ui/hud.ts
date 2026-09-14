@@ -70,6 +70,7 @@ export class Hud {
   private debugBox!: HTMLDivElement;
   private interactPrompt!: HTMLDivElement;
   private lowHealth!: HTMLDivElement;
+  private wardPips!: HTMLDivElement;
   private minimapLabel!: HTMLDivElement;
   private panels = new Map<PanelName, HTMLDivElement>();
   private panelBodies = new Map<PanelName, HTMLDivElement>();
@@ -78,9 +79,12 @@ export class Hud {
   private victoryScreen!: HTMLDivElement;
 
   /** Settings surfaced in the menu (§33 — damage numbers are optional). */
-  settings = { damageNumbers: true, screenShake: true, gore: true };
+  settings = { damageNumbers: true, screenShake: true, gore: true, torchShadows: false };
 
   private selectedArchetype = 'ironbound';
+  /** Notified when a graphics option changes, so the renderer can react. */
+  onSettingChanged: ((key: keyof Hud['settings'], value: boolean) => void) | null = null;
+
   /** The item currently being dragged, if any. Read by the drop handler. */
   dragging: { uid: number; el: HTMLElement } | null = null;
 
@@ -143,6 +147,10 @@ export class Hud {
       bar.appendChild(slot);
     }
     this.root.appendChild(bar);
+
+    this.wardPips = el('div', 'ward-pips');
+    for (let i = 0; i < 3; i++) this.wardPips.appendChild(el('div', 'ward-pip'));
+    this.root.appendChild(this.wardPips);
 
     const potion = el('div', 'potion-slot');
     potion.appendChild(el('div', 'potion-key', 'Q'));
@@ -240,6 +248,26 @@ export class Hud {
     cont.addEventListener('click', () => this.cb.onContinue());
     inner.appendChild(cont);
 
+    // A first-time player has no way to discover that right click is their
+    // primary skill, so the essentials go on the door rather than in a menu.
+    const keys = el('div', 'start-keys');
+    const essentials: [string, string][] = [
+      ['Left click', 'move &middot; attack'],
+      ['Right click', 'primary skill'],
+      ['1 &ndash; 4', 'skills'],
+      ['Q', 'draught'],
+      ['F', 'interact'],
+      ['I / C / K', 'pack &middot; character &middot; skills'],
+      ['Shift', 'compare items'],
+      ['Esc', 'menu'],
+    ];
+    for (const [key, what] of essentials) {
+      const row = el('div', 'start-key');
+      row.innerHTML = `<kbd>${key}</kbd><span>${what}</span>`;
+      keys.appendChild(row);
+    }
+    inner.appendChild(keys);
+
     this.startScreen.appendChild(inner);
     this.root.appendChild(this.startScreen);
 
@@ -266,6 +294,7 @@ export class Hud {
     const vClose = el('button', 'btn wide', 'Go back down');
     vClose.addEventListener('click', () => {
       this.victoryScreen.classList.remove('open');
+      this.setHudHidden(this.anyScreenOpen);
       this.cb.onResume();
     });
     vInner.appendChild(vClose);
@@ -275,7 +304,13 @@ export class Hud {
 
   // --- screens -----------------------------------------------------------
 
+  /** Hides the in-world HUD while a full-screen menu is up. */
+  private setHudHidden(hidden: boolean): void {
+    this.root.classList.toggle('hud-hidden', hidden);
+  }
+
   showStart(hasSave: boolean): void {
+    this.setHudHidden(true);
     this.startScreen.classList.add('open');
     const cont = document.getElementById('btn-continue') as HTMLButtonElement | null;
     if (cont) cont.style.display = hasSave ? 'block' : 'none';
@@ -283,19 +318,23 @@ export class Hud {
 
   hideStart(): void {
     this.startScreen.classList.remove('open');
+    this.setHudHidden(this.anyScreenOpen);
   }
 
   showDeath(): void {
+    this.setHudHidden(true);
     this.deathScreen.classList.add('open');
   }
 
   hideDeath(): void {
     this.deathScreen.classList.remove('open');
+    this.setHudHidden(this.anyScreenOpen);
   }
 
   showVictory(summary: string): void {
     const blurb = this.victoryScreen.querySelector('.blurb');
     if (blurb) blurb.innerHTML = summary;
+    this.setHudHidden(true);
     this.victoryScreen.classList.add('open');
   }
 
@@ -364,6 +403,17 @@ export class Hud {
     this.xpFill.style.width = `${player.progression.xpFraction * 100}%`;
     this.potionCount.textContent = String(player.potion.count);
     this.minimapLabel.textContent = zoneName;
+
+    // Ward charges only exist while a reliquary that grants them is worn.
+    const wards = player.effects.has('fx_ward_charge') ? player.effects.wardCharges : -1;
+    this.wardPips.classList.toggle('visible', wards >= 0);
+    if (wards >= 0) {
+      const pips = this.wardPips.children;
+      for (let i = 0; i < pips.length; i++) {
+        pips[i]!.classList.toggle('lit', i < wards);
+      }
+      this.wardPips.classList.toggle('full', wards >= pips.length);
+    }
 
     // Action bar.
     for (let i = 0; i < this.skillSlots.length; i++) {
@@ -731,6 +781,7 @@ export class Hud {
       ['Damage numbers', 'damageNumbers'],
       ['Screen shake', 'screenShake'],
       ['Gore', 'gore'],
+      ['Torch shadows (costly)', 'torchShadows'],
     ];
     for (const [label, key] of toggles) {
       const row = el('div', 'stat-row');
@@ -738,6 +789,7 @@ export class Hud {
       btn.addEventListener('click', () => {
         this.settings[key] = !this.settings[key];
         btn.textContent = this.settings[key] ? 'On' : 'Off';
+        this.onSettingChanged?.(key, this.settings[key]);
       });
       row.appendChild(el('span', undefined, label));
       row.appendChild(btn);

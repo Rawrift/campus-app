@@ -428,6 +428,22 @@ html, body {
 
 /* ------------------------------------------------------------ screens ---- */
 
+/*
+ * While a full-screen menu is up, the HUD is hidden rather than dimmed. The
+ * screen background is nearly but not fully opaque, so a live health bar
+ * glowing faintly through the start screen reads as a bug.
+ */
+.hud-hidden .hud-bottom-left,
+.hud-hidden .action-bar,
+.hud-hidden .potion-slot,
+.hud-hidden .minimap,
+.hud-hidden .xp-rail,
+.hud-hidden .ward-pips,
+.hud-hidden .boss-bar,
+.hud-hidden .interact-prompt,
+.hud-hidden .low-health,
+.hud-hidden .vignette { display: none !important; }
+
 .screen {
   position: fixed; inset: 0; display: none;
   align-items: center; justify-content: center;
@@ -465,6 +481,39 @@ html, body {
 .archetype-card .tags {
   margin-top: 9px; font-size: 10px; color: #6f695d; font-family: var(--ui-mono);
 }
+
+/* ------------------------------------------------------- ward charges ---- */
+
+.ward-pips {
+  position: absolute; right: 18px; bottom: 86px;
+  display: none; gap: 5px;
+}
+.ward-pips.visible { display: flex; }
+.ward-pip {
+  width: 14px; height: 14px;
+  background: #131210; border: 1px solid var(--edge);
+  transform: rotate(45deg);
+}
+.ward-pip.lit {
+  background: #8fa8c4; border-color: #b6cde3;
+  box-shadow: 0 0 7px #8fa8c488;
+}
+.ward-pips.full .ward-pip.lit { animation: ward-ready 900ms ease-in-out infinite; }
+@keyframes ward-ready { 50% { box-shadow: 0 0 14px #b6cde3; } }
+
+/* --------------------------------------------------------- start keys ---- */
+
+.start-keys {
+  margin-top: 22px; padding-top: 16px; border-top: 1px solid #262420;
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 6px 20px; text-align: left;
+}
+.start-key { display: flex; align-items: baseline; gap: 9px; font-size: 12px; }
+.start-key kbd {
+  flex: 0 0 88px; text-align: right;
+  font-family: var(--ui-mono); font-size: 11px; color: var(--brass);
+}
+.start-key span { color: var(--muted); }
 
 /* -------------------------------------------------------------- boss ---- */
 

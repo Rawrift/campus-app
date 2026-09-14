@@ -89,6 +89,10 @@ export class Game {
       onResume: () => this.resume(),
     });
 
+    this.hud.onSettingChanged = (key, value) => {
+      if (key === 'torchShadows') this.scene.setTorchShadows(value);
+    };
+
     this.wireEvents();
     this.hud.showStart(!!readSave(this.storage, SAVE_SLOT));
     window.addEventListener('resize', this.onResize);
@@ -783,6 +787,7 @@ export class Game {
       },
       closePanels: () => this.hud.closeAllPanels(),
       toggleDebug: () => this.hud.setDebug(this.hud.debugVisible ? null : ''),
+      setTorchShadows: (on: boolean) => this.scene.setTorchShadows(on),
     };
   }
 
