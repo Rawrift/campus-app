@@ -210,9 +210,24 @@ async function main() {
       const p = api.player().actor;
       for (let i = 0; i < 5; i++) api.spawn('kept_flagellant', p.x + 2 + i * 0.4, p.y + 1);
     });
-    await delay(4500);
-    const hurt = await page.evaluate(() => {
-      const a = window.__OSSUAN.api.player().actor;
+    /*
+     * Wait on simulated time, not on wall-clock.
+     *
+     * Five flagellants have to close, telegraph and land a blow, which is about
+     * a second and a half of game time. A fixed `delay` assumed that buys the
+     * same in simulation, and it does on hardware -- but this runs on
+     * SwiftShader with no GPU at around one frame per second, and the clock's
+     * spiral-of-death guard caps how many fixed steps one frame may catch up.
+     * Four and a half seconds of wall-clock then bought a handful of ticks and
+     * the check failed on a game that was working fine, just slowly.
+     */
+    const hurt = await page.evaluate(async () => {
+      const api = window.__OSSUAN.api;
+      const a = api.player().actor;
+      const start = performance.now();
+      while (a.health >= a.maxHealth && performance.now() - start < 40000) {
+        await new Promise((r) => requestAnimationFrame(r));
+      }
       return { hp: a.health, max: a.maxHealth };
     });
     check('enemies damage the player', hurt.hp < hurt.max, `${hurt.hp.toFixed(0)}/${hurt.max}`);
@@ -297,13 +312,17 @@ async function main() {
     const equipped = await page.evaluate(() => {
       const p = window.__OSSUAN.api.player();
       const g = window.__OSSUAN.game;
-      // Count the meshes hanging off the player's rig: equipping must add
-      // geometry to the character, which is the §4 requirement.
+      // Count the *rigid* meshes hanging off the player's rig: equipping must
+      // add geometry to the character, which is the §4 requirement. Counting
+      // every mesh stopped measuring that once the body became a single
+      // skinned mesh -- the total then moves when the body changes, which is
+      // the opposite of what this check is for. Armour, weapons and hair are
+      // the rigid attachments, so they are what gets counted.
       let meshes = 0;
       const playerId = p.actor.id;
       g.scene.scene.traverse(() => {});
       const view = g.scene.actorViews?.get?.(playerId);
-      if (view) view.root.traverse((o) => { if (o.isMesh) meshes++; });
+      if (view) view.root.traverse((o) => { if (o.isMesh && !o.isSkinnedMesh) meshes++; });
       return {
         slots: p.equipment.entries.length,
         armour: p.actor.stats.get('armour'),
@@ -312,8 +331,8 @@ async function main() {
     });
     check('items can be equipped', equipped.slots > 0, `${equipped.slots} slots filled`);
     check('equipment raises armour', equipped.armour > 0, `${equipped.armour.toFixed(1)} armour`);
-    check('the character carries equipment geometry', equipped.meshes > 30,
-      `${equipped.meshes} meshes on the rig`);
+    check('the character carries equipment geometry', equipped.meshes > 12,
+      `${equipped.meshes} rigid attachment meshes on the rig`);
     void equipBefore;
 
     await page.evaluate(() => window.__OSSUAN.api.openPanel('character'));

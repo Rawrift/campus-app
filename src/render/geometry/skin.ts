@@ -144,9 +144,20 @@ export class SkinBinder {
     // screen that difference is the frame budget.
     const byMaterial = new Map<THREE.Material, THREE.BufferGeometry[]>();
 
+    // `mergeGeometries` needs every input in the same indexed state, and the
+    // cheap way to guarantee that is to de-index everything. That is the wrong
+    // trade here twice over: de-indexing roughly triples the vertex count, and
+    // skinning is per-vertex work done on every frame -- and shared vertices
+    // are also what let `computeVertexNormals` average a smooth normal across a
+    // seam instead of faceting it. So keep the indices whenever every part
+    // already has them, which is the case for anything `loft` or `shell` built.
+    const allIndexed = this.parts.every((part) => part.geometry.index !== null);
+
     for (const part of this.parts) {
-      const geo = part.geometry.index ? part.geometry.toNonIndexed() : part.geometry.clone();
-      if (part.geometry.index) part.geometry.dispose();
+      const geo = allIndexed || !part.geometry.index
+        ? part.geometry.clone()
+        : part.geometry.toNonIndexed();
+      if (!allIndexed && part.geometry.index) part.geometry.dispose();
 
       // Into root space: the part's rest-pose placement, then out of the root's
       // own transform so the mesh can sit at identity under it.
