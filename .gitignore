@@ -6,3 +6,7 @@ screenshots/
 .DS_Store
 dist-artifact/
 dist-single/
+
+# Scratch diagnostic tools: probes written to isolate one bug, not part of the
+# verification suite. `tools/smoke.mjs` and `tools/shots.mjs` are.
+tools/_*.mjs
