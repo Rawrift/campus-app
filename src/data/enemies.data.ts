@@ -31,7 +31,7 @@ export const ENEMIES = new Registry<EnemyDef>('enemies', [
     }],
     aggroRange: 9, leashRange: 20, preferredRange: 1.1, strafe: 0.2, alertTime: 0.25, fleeBelow: 0,
     xp: 7, dropChance: 0.11, dropRolls: 1,
-    visual: { build: 'hunched', scale: 0.95, primary: 0x6a5c4c, secondary: 0x4a4038, accent: 0x8a7a5c, cloth: 0.6, weapon: 'claws' },
+    visual: { build: 'hunched', scale: 0.95, primary: 0x8a7558, secondary: 0x5c4e40, accent: 0xa8936c, cloth: 0.6, weapon: 'claws' },
     note: 'They still walk the paths between their own houses.',
   },
   {
@@ -58,7 +58,7 @@ export const ENEMIES = new Registry<EnemyDef>('enemies', [
     ],
     aggroRange: 10, leashRange: 22, preferredRange: 1.6, strafe: 0.35, alertTime: 0.45, fleeBelow: 0,
     xp: 16, dropChance: 0.19, dropRolls: 1,
-    visual: { build: 'armoured', scale: 1.02, primary: 0x5a5248, secondary: 0x3a3630, accent: 0x7a6a4a, weapon: 'shield_sword' },
+    visual: { build: 'armoured', scale: 1.02, primary: 0x726757, secondary: 0x46423a, accent: 0x968257, weapon: 'shield_sword' },
     note: 'The levy broke before the abbey did. Some of them made it this far.',
   },
   {
@@ -105,7 +105,7 @@ export const ENEMIES = new Registry<EnemyDef>('enemies', [
     ],
     aggroRange: 9, leashRange: 20, preferredRange: 2.0, strafe: 0.1, alertTime: 0.6, fleeBelow: 0,
     xp: 40, dropChance: 0.32, dropRolls: 1, rarityBonus: 0.4,
-    visual: { build: 'heavy', scale: 1.22, primary: 0x4e4740, secondary: 0x2e2a26, accent: 0x8a7040, weapon: 'maul' },
+    visual: { build: 'heavy', scale: 1.22, primary: 0x665c4e, secondary: 0x3c3730, accent: 0xa3854c, weapon: 'maul' },
     note: 'Kept the ovens. Kept the doors. Still keeping something.',
   },
   {
@@ -155,7 +155,7 @@ export const ENEMIES = new Registry<EnemyDef>('enemies', [
     }],
     aggroRange: 13, leashRange: 26, preferredRange: 1.2, strafe: 0.9, alertTime: 0.15, fleeBelow: 0,
     xp: 13, dropChance: 0.08, dropRolls: 1,
-    visual: { build: 'quadruped', scale: 1.0, primary: 0x4a3c30, secondary: 0x2e2620, accent: 0x6a5a3a, weapon: 'claws' },
+    visual: { build: 'quadruped', scale: 1.0, primary: 0x55413a, secondary: 0x332824, accent: 0x8a4e3a, weapon: 'claws' },
     note: 'They dug where they should not have.',
   },
   {
@@ -182,7 +182,7 @@ export const ENEMIES = new Registry<EnemyDef>('enemies', [
     ],
     aggroRange: 10, leashRange: 22, preferredRange: 1.8, strafe: 0.05, alertTime: 0.5, fleeBelow: 0,
     xp: 38, dropChance: 0.2, dropRolls: 1,
-    visual: { build: 'quadruped', scale: 1.45, primary: 0x5a4a3c, secondary: 0x342c26, accent: 0x7d4a3a, weapon: 'claws' },
+    visual: { build: 'quadruped', scale: 1.45, primary: 0x624a40, secondary: 0x3a2e28, accent: 0x92503c, weapon: 'claws' },
   },
 
   // ======================= THE HOLLOW =====================================
@@ -204,7 +204,7 @@ export const ENEMIES = new Registry<EnemyDef>('enemies', [
     }],
     aggroRange: 8, leashRange: 30, preferredRange: 1.6, strafe: 0.1, alertTime: 0.7, fleeBelow: 0,
     xp: 26, dropChance: 0.17, dropRolls: 1,
-    visual: { build: 'tall', scale: 1.08, primary: 0x4a4550, secondary: 0x2a2730, accent: 0x8a7fa0, cloth: 0.7, glow: 0.25 },
+    visual: { build: 'tall', scale: 1.08, primary: 0x5c5a72, secondary: 0x32303f, accent: 0xa79cc4, cloth: 0.7, glow: 0.25 },
     note: 'The body kept the habit of standing. Nothing else stayed.',
   },
   {
@@ -249,7 +249,7 @@ export const ENEMIES = new Registry<EnemyDef>('enemies', [
     ],
     aggroRange: 12, leashRange: 26, preferredRange: 7, strafe: 0.5, alertTime: 0.5, fleeBelow: 0.3,
     xp: 58, dropChance: 0.34, dropRolls: 1, rarityBonus: 0.5,
-    visual: { build: 'tall', scale: 1.05, primary: 0x50485a, secondary: 0x2c2833, accent: 0xc8b98a, cloth: 0.85, weapon: 'staff', glow: 0.4 },
+    visual: { build: 'tall', scale: 1.05, primary: 0x635a78, secondary: 0x36313f, accent: 0xd9c89a, cloth: 0.85, weapon: 'staff', glow: 0.4 },
     note: 'It is sorting them. It seems to be looking for a particular one.',
   },
 

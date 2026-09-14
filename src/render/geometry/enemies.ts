@@ -11,6 +11,7 @@
  */
 
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '@/core/rng';
 import { clamp, damp, TAU } from '@/core/math';
 import { material, emissive } from '../materials';
@@ -42,6 +43,80 @@ export class EnemyRig {
     this.root.scale.setScalar(visual.scale);
     this.root.add(this.torso);
     this.build(rng);
+    this.mergeStatic();
+  }
+
+  /**
+   * Collapses each animated group's static sub-meshes into one mesh per
+   * material.
+   *
+   * An enemy is built from 10-20 primitives, and at one draw call each a
+   * mid-size pack costs more draw calls than the entire level does. The parts
+   * within a joint never move relative to each other, so they can be baked;
+   * anything the animator looks up by name (glowing cores, flames, rags) is
+   * left alone.
+   */
+  private mergeStatic(): void {
+    const groups = [this.torso, this.head, this.armL, this.armR, this.legL, this.legR];
+    const merged: THREE.Mesh[] = [];
+
+    for (const group of groups) {
+      const batches = new Map<THREE.Material, THREE.Mesh[]>();
+      for (const child of [...group.children]) {
+        if (!(child instanceof THREE.Mesh)) continue;
+        // Named meshes are animated individually; never fold them in.
+        if (child.name) continue;
+        const mat = child.material as THREE.Material;
+        if (Array.isArray(child.material)) continue;
+        let list = batches.get(mat);
+        if (!list) { list = []; batches.set(mat, list); }
+        list.push(child);
+      }
+
+      for (const [mat, meshes] of batches) {
+        if (meshes.length < 2) {
+          if (meshes[0]) merged.push(meshes[0]);
+          continue;
+        }
+        const geometries = meshes.map((m) => {
+          m.updateMatrix();
+          const g = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone())
+            .applyMatrix4(m.matrix);
+          for (const name of Object.keys(g.attributes)) {
+            if (name !== 'position' && name !== 'normal' && name !== 'uv') g.deleteAttribute(name);
+          }
+          if (!g.attributes.uv) {
+            g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position!.count * 2), 2));
+          }
+          return g;
+        });
+
+        const combined = mergeGeometries(geometries, false);
+        if (!combined) {
+          // Keep the originals rather than losing body parts.
+          for (const m of meshes) merged.push(m);
+          for (const g of geometries) g.dispose();
+          continue;
+        }
+        for (const m of meshes) {
+          group.remove(m);
+          m.geometry.dispose();
+        }
+        for (const g of geometries) g.dispose();
+
+        const mesh = new THREE.Mesh(combined, mat);
+        mesh.castShadow = true;
+        group.add(mesh);
+        merged.push(mesh);
+      }
+    }
+
+    // Anything not touched above (named meshes, nested weapon groups) keeps its
+    // place in the tint list.
+    for (const m of this.meshes) {
+      if (m.parent && !merged.includes(m)) merged.push(m);
+    }
+    this.meshes = merged;
   }
 
   private mesh(parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, y = 0, x = 0, z = 0): THREE.Mesh {
@@ -222,8 +297,12 @@ export class EnemyRig {
         }
         this.head.position.y = 0.42;
         this.torso.add(this.head);
-        this.mesh(this.head, new THREE.SphereGeometry(0.13, 9, 7), accent).scale.set(0.95, 1.1, 1);
-        this.mesh(this.head, new THREE.BoxGeometry(0.04, 0.14, 0.04), accent, -0.04, 0, 0.12);
+        // A tapered great-helm, not a ball: the flat faces catch the key light
+        // and give the head a direction you can read at distance.
+        const helm = this.mesh(this.head, new THREE.CylinderGeometry(0.1, 0.14, 0.26, 6), accent);
+        helm.rotation.y = Math.PI / 6;
+        this.mesh(this.head, new THREE.BoxGeometry(0.045, 0.15, 0.05), accent, -0.03, 0, 0.12);
+        this.mesh(this.head, new THREE.BoxGeometry(0.03, 0.1, 0.3), accent, 0.16);
         if (v.glow) {
           const visor = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.025, 0.02), emissive(v.accent, 0.85));
           visor.position.set(0, 0.01, 0.13);
@@ -232,9 +311,17 @@ export class EnemyRig {
         for (const [arm, side] of [[this.armL, -1], [this.armR, 1]] as const) {
           arm.position.set(side * 0.31, 0.22, 0);
           this.torso.add(arm);
-          this.mesh(arm, new THREE.SphereGeometry(0.17, 9, 7), accent, 0.04).scale.set(1.1, 0.9, 1);
-          this.mesh(arm, new THREE.CylinderGeometry(0.07, 0.058, 0.54, 7), secondary, -0.28);
-          this.mesh(arm, new THREE.BoxGeometry(0.11, 0.13, 0.1), accent, -0.58);
+          // Layered angled plates rather than a sphere: a sphere becomes a
+          // giant orb once the boss is scaled up, and reads as a blob.
+          for (let i = 0; i < 3; i++) {
+            const lame = this.mesh(
+              arm, new THREE.BoxGeometry(0.3 - i * 0.03, 0.1, 0.26 - i * 0.02),
+              accent, 0.08 - i * 0.09, side * 0.03,
+            );
+            lame.rotation.z = side * (0.22 + i * 0.08);
+          }
+          this.mesh(arm, new THREE.CylinderGeometry(0.07, 0.058, 0.54, 7), secondary, -0.3);
+          this.mesh(arm, new THREE.BoxGeometry(0.11, 0.13, 0.1), accent, -0.6);
         }
         for (const [leg, side] of [[this.legL, -1], [this.legR, 1]] as const) {
           leg.position.set(side * 0.14, -0.4, 0);

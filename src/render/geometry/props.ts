@@ -585,7 +585,7 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
   // --- bells --------------------------------------------------------------
   bell: (rng, g) => {
     const brass = material('darksteel', 0x8a7038, rng.int(0, 999), {
-      emissive: 0xc8a349, emissiveIntensity: 0.28, side: THREE.DoubleSide,
+      emissive: 0xc8a349, emissiveIntensity: 0.1, side: THREE.DoubleSide,
     });
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.92, 1.3, 14, 1, true), brass);
     body.position.y = 1.5;

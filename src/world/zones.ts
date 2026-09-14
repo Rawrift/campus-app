@@ -63,11 +63,11 @@ const VILLAGE_AMBIENCE: Ambience = {
  * between darkness as a mechanic and darkness as a defect.
  */
 const CRYPT_AMBIENCE: Ambience = {
-  ambientColour: 0x3a3e4c, ambientIntensity: 0.42,
-  sunColour: 0x3e4354, sunIntensity: 0.22,
+  ambientColour: 0x4c4a4a, ambientIntensity: 0.44,
+  sunColour: 0x474650, sunIntensity: 0.24,
   sunAngle: [-0.7, 1.6],
   fogColour: 0x0e0e12, fogNear: 11, fogFar: 38,
-  groundColour: 0x5f584c, wallColour: 0x645d50,
+  groundColour: 0x635a4b, wallColour: 0x685f50,
   interior: true, wallHeight: 3.4, ambienceTrack: 'crypt',
 };
 
@@ -522,8 +522,8 @@ const DUNGEON: ZoneDef = {
 
     // --- Belfry: the boss arena --------------------------------------------
     props.push({
-      kind: 'bell', x: 32, y: 6, rotation: 0, scale: 2.6, variant: 0,
-      light: { colour: 0xc8a349, intensity: 40, range: 18, flicker: 0.05 },
+      kind: 'bell', x: 32, y: 4.2, rotation: 0, scale: 1.25, variant: 0,
+      light: { colour: 0xc8a349, intensity: 34, range: 16, flicker: 0.05 },
       note: 'The ninth bell. It is ringing, very quietly, and nothing is touching it.',
     });
     props.push({ kind: 'pillar', x: 22, y: 5, rotation: 0, scale: 1.5, variant: 5 });

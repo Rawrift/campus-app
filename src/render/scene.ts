@@ -10,6 +10,7 @@
  */
 
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '@/core/rng';
 import { clamp, damp, lerp } from '@/core/math';
 import { Tile, type GroundItem, type SimWorld } from '@/sim/world';
@@ -21,6 +22,7 @@ import { RARITY, type EquipSlot, type VisualModule, type WeaponCategory } from '
 import type { Actor } from '@/sim/entity';
 import type { PlayerController } from '@/sim/player';
 import type { LoadedZone } from '@/world/zoneRuntime';
+import type { Prop } from '@/world/zoneDef';
 import { CameraRig } from './camera';
 import { buildTerrain, type TerrainResult } from './terrain';
 import { buildProp } from './geometry/props';
@@ -78,6 +80,16 @@ export class GameScene {
   private zoneGroup = new THREE.Group();
   private sun: THREE.DirectionalLight;
   private fill: THREE.DirectionalLight;
+  /**
+   * A dim light that travels with the player.
+   *
+   * The brief requires that character type, weapon, armour class and enemy
+   * identity be readable at a glance (§2), and a scene lit only by scattered
+   * torches cannot guarantee that — you routinely fight in the gaps between
+   * them. This keeps the immediate area around the player legible without
+   * lifting the zone's overall darkness, which stays a mechanic.
+   */
+  private presence: THREE.PointLight;
   private hemi: THREE.HemisphereLight;
   /** Direction the key light comes from, set per zone. */
   private sunDir = new THREE.Vector3(0.6, 0.8, 0.4);
@@ -136,6 +148,10 @@ export class GameScene {
     this.fill.castShadow = false;
     this.scene.add(this.fill);
 
+    this.presence = new THREE.PointLight(0xc4ab88, 26, 16, 1.55);
+    this.presence.castShadow = false;
+    this.scene.add(this.presence);
+
     // Click-to-move marker.
     this.moveMarker = new THREE.Mesh(
       new THREE.RingGeometry(0.22, 0.32, 18),
@@ -185,32 +201,85 @@ export class GameScene {
     ).normalize();
     this.fill.color.setHex(amb.ambientColour);
     this.fill.intensity = amb.interior ? 0.22 : 0.38;
+    // Stronger indoors, where there is no sky to fall back on.
+    this.presence.intensity = amb.interior ? 30 : 17;
+    this.presence.distance = amb.interior ? 17 : 14;
 
     this.cameraRig.setBounds(def.width, def.height);
 
     // --- props -----------------------------------------------------------
+    // Props are static, so instead of adding one Group per prop (a draw call
+    // per sub-mesh, per prop) their geometries are baked into world space and
+    // merged per material. A zone with 800 props drops from roughly 1600 draw
+    // calls to one per distinct material.
+    const batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
+    const matrix = new THREE.Matrix4();
+    const propMatrix = new THREE.Matrix4();
+
     for (const prop of props) {
       const template = buildProp(prop.kind, prop.variant);
-      const instance = template.clone(true);
-      instance.position.set(prop.x, 0, prop.y);
-      instance.rotation.y = prop.rotation;
-      instance.scale.setScalar(prop.scale);
-      this.zoneGroup.add(instance);
+      propMatrix.compose(
+        new THREE.Vector3(prop.x, 0, prop.y),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, prop.rotation, 0)),
+        new THREE.Vector3(prop.scale, prop.scale, prop.scale),
+      );
 
-      if (prop.light) {
-        const light = new THREE.PointLight(prop.light.colour, prop.light.intensity, prop.light.range, 2);
-        light.position.set(prop.x, 1.5, prop.y);
-        this.zoneGroup.add(light);
+      template.updateMatrixWorld(true);
+      // Props with lights are added individually below (their flames animate),
+      // so they must not also be baked into the static batch.
+      if (prop.light) { this.addPropLight(prop); continue; }
 
-        const flames: THREE.Object3D[] = [];
-        instance.traverse((o) => { if (o.name === 'flame') flames.push(o); });
-        this.flickers.push({
-          light, base: prop.light.intensity, amount: prop.light.flicker ?? 0,
-          phase: this.rng.range(0, Math.PI * 2), flames,
-          x: prop.x, y: 1.45, z: prop.y,
-          emit: prop.kind === 'brazier' || prop.kind === 'torch' || prop.kind === 'forge',
-        });
+      template.traverse((node) => {
+        if (!(node instanceof THREE.Mesh)) return;
+        const mat = node.material as THREE.Material;
+        if (Array.isArray(node.material)) return;
+
+        // Bake the prop transform and the sub-mesh's local transform together.
+        matrix.multiplyMatrices(propMatrix, node.matrixWorld);
+
+        // Merging requires every geometry in a batch to agree on both its
+        // attribute set and whether it is indexed. Three.js primitives differ
+        // on the latter, so everything is normalised to non-indexed: the extra
+        // vertices are cheap for static scenery, and mixing the two silently
+        // fails the whole batch.
+        const geo = (node.geometry.index ? node.geometry.toNonIndexed() : node.geometry.clone())
+          .applyMatrix4(matrix);
+        for (const name of Object.keys(geo.attributes)) {
+          if (name !== 'position' && name !== 'normal' && name !== 'uv') {
+            geo.deleteAttribute(name);
+          }
+        }
+        if (!geo.attributes.uv) {
+          const count = geo.attributes.position!.count;
+          geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(count * 2), 2));
+        }
+        if (!geo.attributes.normal) geo.computeVertexNormals();
+
+        let list = batches.get(mat);
+        if (!list) { list = []; batches.set(mat, list); }
+        list.push(geo);
+      });
+
+    }
+
+    // Flush the batches into one mesh per material.
+    for (const [mat, geometries] of batches) {
+      if (geometries.length === 0) continue;
+      const merged = geometries.length === 1
+        ? geometries[0]!
+        : mergeGeometries(geometries, false);
+      if (!merged) {
+        // Never silently drop scenery: fall back to unmerged meshes so a
+        // geometry mismatch shows up as a performance issue, not a missing prop.
+        console.warn('[scene] could not merge a prop batch; falling back');
+        for (const geo of geometries) this.zoneGroup.add(new THREE.Mesh(geo, mat));
+        continue;
       }
+      const mesh = new THREE.Mesh(merged, mat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      this.zoneGroup.add(mesh);
+      if (geometries.length > 1) for (const geo of geometries) geo.dispose();
     }
 
     // --- interactables ----------------------------------------------------
@@ -245,11 +314,45 @@ export class GameScene {
     void Tile;
   }
 
+  /**
+   * Adds a prop that carries a light.
+   *
+   * These are kept as individual objects rather than merged into the static
+   * batch, because the flicker animation scales their flame meshes every frame.
+   * There are only a few dozen per zone, so the draw calls are affordable.
+   */
+  private addPropLight(prop: Prop): void {
+    if (!prop.light) return;
+    const template = buildProp(prop.kind, prop.variant);
+    const instance = template.clone(true);
+    instance.position.set(prop.x, 0, prop.y);
+    instance.rotation.y = prop.rotation;
+    instance.scale.setScalar(prop.scale);
+    instance.traverse((o) => { if (o instanceof THREE.Mesh) o.castShadow = true; });
+    this.zoneGroup.add(instance);
+
+    const light = new THREE.PointLight(prop.light.colour, prop.light.intensity, prop.light.range, 2);
+    light.position.set(prop.x, 1.5, prop.y);
+    this.zoneGroup.add(light);
+
+    const flames: THREE.Object3D[] = [];
+    instance.traverse((o) => { if (o.name === 'flame') flames.push(o); });
+
+    this.flickers.push({
+      light, base: prop.light.intensity, amount: prop.light.flicker ?? 0,
+      phase: this.rng.range(0, Math.PI * 2), flames,
+      x: prop.x, y: 1.45, z: prop.y,
+      emit: prop.kind === 'brazier' || prop.kind === 'torch' || prop.kind === 'forge',
+    });
+  }
+
   private clearZone(): void {
     this.terrain?.dispose();
     this.terrain = null;
+    // Merged batches own their geometry, so dispose everything under the zone
+    // group rather than only its direct children.
     this.zoneGroup.traverse((o) => {
-      if (o instanceof THREE.Mesh && o.parent === this.zoneGroup) o.geometry.dispose();
+      if (o instanceof THREE.Mesh) o.geometry.dispose();
     });
     this.zoneGroup.clear();
     this.flickers.length = 0;
@@ -502,6 +605,9 @@ export class GameScene {
     );
     this.fill.target.position.set(px, 0, pz);
     this.fill.target.updateMatrixWorld();
+    // Slightly above and behind the player, so it rims their silhouette rather
+    // than flattening them with a head-on flash.
+    this.presence.position.set(px + this.sunDir.x * 1.6, 3.4, pz + this.sunDir.z * 1.6);
 
     this.vfx.update(dt);
     this.updateOcclusion(px, pz);
