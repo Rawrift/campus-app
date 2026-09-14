@@ -1,0 +1,25 @@
+{
+  "name": "project-chacox",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "OSSUAN — a dark fantasy isometric ARPG. Working title: PROJECT CHACOX.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "smoke": "node tools/smoke.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.4",
+    "playwright": "^1.48.2"
+  },
+  "dependencies": {
+    "three": "^0.169.0"
+  }
+}
