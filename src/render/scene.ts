@@ -11,6 +11,10 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { Rng } from '@/core/rng';
 import { clamp, damp, lerp } from '@/core/math';
 import { Tile, type GroundItem, type SimWorld } from '@/sim/world';
@@ -25,6 +29,7 @@ import type { LoadedZone } from '@/world/zoneRuntime';
 import type { Prop } from '@/world/zoneDef';
 import { CameraRig } from './camera';
 import { buildTerrain, type TerrainResult } from './terrain';
+import { environmentTexture } from './textures';
 import { buildProp } from './geometry/props';
 import { CharacterRig, type AnimState } from './geometry/character';
 import { EnemyRig } from './geometry/enemies';
@@ -129,6 +134,20 @@ export class GameScene {
   private equipSignature = '';
   private rng = new Rng('scene');
   private elapsed = 0;
+  /** Image-based lighting, regenerated per zone from that zone's palette. */
+  private pmrem: THREE.PMREMGenerator;
+  private envTarget: THREE.WebGLRenderTarget | null = null;
+  /**
+   * Bloom.
+   *
+   * The whole game is lit by fire in the dark, and fire that does not bleed
+   * into the air around it reads as a flat orange shape. A high threshold keeps
+   * it off ordinary surfaces: only flames, magic, hot coals and the emissive
+   * cores of the Hollow cross it.
+   */
+  private composer: EffectComposer;
+  private bloom: UnrealBloomPass;
+  bloomEnabled = true;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -144,7 +163,10 @@ export class GameScene {
     // ACES filmic keeps the deep shadows this game lives in from crushing to
     // pure black while letting torchlight bloom out (§28).
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.12;
+    this.renderer.toneMappingExposure = 1.05;
+
+    this.pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.pmrem.compileEquirectangularShader();
 
     this.cameraRig = new CameraRig(canvas.clientWidth / Math.max(1, canvas.clientHeight));
     this.scene.add(this.zoneGroup);
@@ -196,6 +218,17 @@ export class GameScene {
     }
 
     // Click-to-move marker.
+    const size = new THREE.Vector2(
+      Math.max(1, canvas.clientWidth), Math.max(1, canvas.clientHeight),
+    );
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.cameraRig.camera));
+    this.bloom = new UnrealBloomPass(size, 0.62, 0.72, 0.82);
+    this.composer.addPass(this.bloom);
+    // OutputPass applies tone mapping and the colour-space conversion at the
+    // end of the chain, which is where they belong once a composer exists.
+    this.composer.addPass(new OutputPass());
+
     this.moveMarker = new THREE.Mesh(
       new THREE.RingGeometry(0.22, 0.32, 18),
       emissive(0xc8b98a, 0.7),
@@ -223,6 +256,19 @@ export class GameScene {
     this.terrain = buildTerrain(grid, amb, 1234);
     this.zoneGroup.add(this.terrain.group);
 
+    // Rebuild the environment for this zone, so metal reflects the room it is
+    // actually standing in rather than a generic grey.
+    this.envTarget?.dispose();
+    const envSource = environmentTexture(
+      amb.ambientColour, amb.groundColour, amb.interior ? 0.5 : 0.3,
+    );
+    this.envTarget = this.pmrem.fromEquirectangular(envSource);
+    this.scene.environment = this.envTarget.texture;
+    // Kept low: this is a dark game, and the environment is here to make metal
+    // read as metal, not to light the scene.
+    this.scene.environmentIntensity = amb.interior ? 0.3 : 0.45;
+    envSource.dispose();
+
     this.scene.fog = new THREE.Fog(amb.fogColour, amb.fogNear, amb.fogFar);
     this.scene.background = new THREE.Color(amb.fogColour);
     this.hemi.color.setHex(amb.ambientColour);
@@ -245,7 +291,7 @@ export class GameScene {
     this.fill.color.setHex(amb.ambientColour);
     this.fill.intensity = amb.interior ? 0.22 : 0.38;
     // Stronger indoors, where there is no sky to fall back on.
-    this.presence.intensity = amb.interior ? 30 : 17;
+    this.presence.intensity = amb.interior ? 13 : 7;
     this.presence.distance = amb.interior ? 17 : 14;
 
     this.cameraRig.setBounds(def.width, def.height);
@@ -983,11 +1029,26 @@ export class GameScene {
 
   resize(width: number, height: number): void {
     this.renderer.setSize(width, height, false);
+    this.composer.setSize(width, height);
     this.cameraRig.resize(width / Math.max(1, height));
   }
 
   render(): void {
-    this.renderer.render(this.scene, this.cameraRig.camera);
+    // `renderer.info.render` is reset at the start of every `render()` call, and
+    // the composer makes several per frame -- so read straight after a composed
+    // frame and you get the output pass's single fullscreen triangle instead of
+    // the scene. Holding the reset until the next frame accumulates every pass,
+    // which is both what the debug overlay wants and a stable number to assert
+    // on.
+    this.renderer.info.autoReset = false;
+    this.renderer.info.reset();
+    if (this.bloomEnabled) this.composer.render();
+    else this.renderer.render(this.scene, this.cameraRig.camera);
+  }
+
+  /** Toggled by the graphics option and by the automated tests. */
+  setBloom(enabled: boolean): void {
+    this.bloomEnabled = enabled;
   }
 
   /** Renderer statistics for the debug overlay (§55). */
@@ -1003,6 +1064,8 @@ export class GameScene {
   dispose(): void {
     this.clearZone();
     this.vfx.dispose();
+    this.envTarget?.dispose();
+    this.pmrem.dispose();
     this.renderer.dispose();
   }
 }

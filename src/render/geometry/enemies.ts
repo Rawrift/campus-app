@@ -15,6 +15,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { Rng } from '@/core/rng';
 import { clamp, damp, TAU } from '@/core/math';
 import { material, emissive } from '../materials';
+import { loft, shell, type Section } from './loft';
 import type { EnemyVisual } from '@/sim/enemyDef';
 import type { AnimState } from './character';
 
@@ -136,29 +137,62 @@ export class EnemyRig {
     const skin = material('skin', v.primary, seed + 2);
     const accent = material('iron', v.accent, seed + 3);
     const glowMat = v.glow
-      ? material('bone', v.accent, seed + 4, { emissive: v.accent, emissiveIntensity: v.glow * 0.85 })
+      ? material('bone', v.accent, seed + 4, { emissive: v.accent, emissiveIntensity: v.glow * 0.5 })
       : accent;
+
+    /** Adds a lofted part; the helper keeps the body-plan code readable. */
+    const part = (
+      parent: THREE.Object3D, sections: Section[], mat: THREE.Material,
+      opts: { radial?: number; dome?: boolean; y?: number } = {},
+    ) => this.mesh(
+      parent,
+      loft(sections, {
+        radialSegments: opts.radial ?? 12, smoothSteps: 3, domeEnd: opts.dome,
+      }),
+      mat, opts.y ?? 0,
+    );
 
     switch (v.build) {
       // --- gaunt: tall, thin, long arms. Reads as "fast and fragile". -------
       case 'gaunt': {
         this.baseY = 0;
         this.torso.position.y = 1.0;
-        this.mesh(this.torso, new THREE.CylinderGeometry(0.13, 0.16, 0.62, 7), primary);
+        // A starved ribcage: wide across the chest, hollow at the waist.
+        part(this.torso, [
+          { y: -0.34, width: 0.095, depth: 0.072, roundness: 2.9 },
+          { y: -0.16, width: 0.105, depth: 0.078, roundness: 3.0 },
+          { y:  0.04, width: 0.135, depth: 0.094, roundness: 3.1 },
+          { y:  0.20, width: 0.128, depth: 0.086, roundness: 3.0 },
+          { y:  0.30, width: 0.100, depth: 0.070, roundness: 2.8 },
+        ], primary, { radial: 14 });
+
         this.head.position.y = 0.42;
         this.torso.add(this.head);
-        const skull = this.mesh(this.head, new THREE.SphereGeometry(0.1, 9, 7), skin);
-        skull.scale.set(0.82, 1.35, 0.9);
+        part(this.head, [
+          { y: -0.075, width: 0.034, depth: 0.042, roundness: 2.6, offsetZ: 0.010 },
+          { y: -0.030, width: 0.058, depth: 0.068, roundness: 2.6 },
+          { y:  0.030, width: 0.066, depth: 0.076, roundness: 2.4 },
+          { y:  0.080, width: 0.052, depth: 0.058, roundness: 2.3, offsetZ: -0.008 },
+        ], skin, { radial: 12, dome: true });
+
         for (const [arm, side] of [[this.armL, -1], [this.armR, 1]] as const) {
-          arm.position.set(side * 0.15, 0.24, 0);
+          arm.position.set(side * 0.13, 0.22, 0);
           this.torso.add(arm);
-          this.mesh(arm, new THREE.CylinderGeometry(0.035, 0.028, 0.66, 6), skin, -0.33);
-          this.mesh(arm, new THREE.BoxGeometry(0.06, 0.13, 0.05), skin, -0.68);
+          part(arm, [
+            { y:  0.02, width: 0.036, depth: 0.036, roundness: 2.4 },
+            { y: -0.24, width: 0.026, depth: 0.026, roundness: 2.3 },
+            { y: -0.52, width: 0.022, depth: 0.022, roundness: 2.2 },
+            { y: -0.66, width: 0.026, depth: 0.020, roundness: 2.6 },
+          ], skin, { radial: 10, dome: true });
         }
         for (const [leg, side] of [[this.legL, -1], [this.legR, 1]] as const) {
-          leg.position.set(side * 0.08, -0.32, 0);
+          leg.position.set(side * 0.075, -0.32, 0);
           this.torso.add(leg);
-          this.mesh(leg, new THREE.CylinderGeometry(0.05, 0.038, 0.68, 6), secondary, -0.34);
+          part(leg, [
+            { y:  0.00, width: 0.048, depth: 0.048, roundness: 2.5 },
+            { y: -0.30, width: 0.034, depth: 0.036, roundness: 2.4 },
+            { y: -0.62, width: 0.028, depth: 0.028, roundness: 2.3 },
+          ], secondary, { radial: 10 });
         }
         break;
       }
@@ -166,23 +200,45 @@ export class EnemyRig {
       // --- heavy: wide, low, enormous shoulders. Reads as "do not tank this".
       case 'heavy': {
         this.torso.position.y = 1.05;
-        const body = this.mesh(this.torso, new THREE.BoxGeometry(0.62, 0.68, 0.44), primary);
-        body.geometry.translate(0, 0, 0);
-        this.head.position.y = 0.38;
+        part(this.torso, [
+          { y: -0.36, width: 0.215, depth: 0.170, roundness: 3.2 },
+          { y: -0.14, width: 0.250, depth: 0.195, roundness: 3.4 },
+          { y:  0.10, width: 0.295, depth: 0.215, roundness: 3.5 },
+          { y:  0.26, width: 0.270, depth: 0.185, roundness: 3.3 },
+          { y:  0.34, width: 0.190, depth: 0.145, roundness: 3.0 },
+        ], primary, { radial: 16 });
+
+        this.head.position.y = 0.40;
         this.torso.add(this.head);
-        this.mesh(this.head, new THREE.SphereGeometry(0.13, 9, 7), skin).scale.set(1, 0.86, 1);
+        part(this.head, [
+          { y: -0.070, width: 0.070, depth: 0.078, roundness: 2.8 },
+          { y: -0.010, width: 0.098, depth: 0.104, roundness: 2.7 },
+          { y:  0.060, width: 0.088, depth: 0.092, roundness: 2.5 },
+        ], skin, { radial: 12, dome: true });
+
         for (const [arm, side] of [[this.armL, -1], [this.armR, 1]] as const) {
-          arm.position.set(side * 0.36, 0.2, 0);
+          arm.position.set(side * 0.33, 0.20, 0);
           this.torso.add(arm);
-          // Slab shoulders: the defining feature of this plan.
-          this.mesh(arm, new THREE.SphereGeometry(0.2, 9, 7), accent, 0.06).scale.set(1.15, 0.9, 1.05);
-          this.mesh(arm, new THREE.CylinderGeometry(0.085, 0.07, 0.56, 7), skin, -0.3);
-          this.mesh(arm, new THREE.BoxGeometry(0.13, 0.15, 0.11), secondary, -0.62);
+          // Slab shoulders as domed shells: the defining feature of this plan.
+          const pad = this.mesh(arm, shell(0.185, {
+            arc: Math.PI * 0.58, thickness: 0.02, segments: 14,
+            scaleX: 1.2, scaleY: 0.86, scaleZ: 1.05,
+          }), accent, 0.05);
+          pad.rotation.z = side * 0.12;
+          part(arm, [
+            { y: -0.04, width: 0.082, depth: 0.080, roundness: 2.6 },
+            { y: -0.34, width: 0.064, depth: 0.062, roundness: 2.5 },
+            { y: -0.58, width: 0.072, depth: 0.058, roundness: 2.9 },
+          ], skin, { radial: 12, dome: true });
         }
         for (const [leg, side] of [[this.legL, -1], [this.legR, 1]] as const) {
-          leg.position.set(side * 0.16, -0.36, 0);
+          leg.position.set(side * 0.15, -0.34, 0);
           this.torso.add(leg);
-          this.mesh(leg, new THREE.CylinderGeometry(0.11, 0.09, 0.66, 7), secondary, -0.33);
+          part(leg, [
+            { y:  0.00, width: 0.108, depth: 0.100, roundness: 2.7 },
+            { y: -0.34, width: 0.082, depth: 0.078, roundness: 2.5 },
+            { y: -0.64, width: 0.070, depth: 0.070, roundness: 2.4 },
+          ], secondary, { radial: 12 });
         }
         break;
       }
@@ -191,21 +247,42 @@ export class EnemyRig {
       case 'hunched': {
         this.torso.position.y = 0.95;
         this.torso.rotation.x = 0.34;
-        this.mesh(this.torso, new THREE.CylinderGeometry(0.17, 0.2, 0.55, 7), primary);
-        this.head.position.set(0, 0.34, 0.09);
+        // The offsets curve the spine forward rather than just tilting a tube.
+        part(this.torso, [
+          { y: -0.30, width: 0.135, depth: 0.100, roundness: 3.0, offsetZ: -0.020 },
+          { y: -0.12, width: 0.150, depth: 0.112, roundness: 3.1 },
+          { y:  0.06, width: 0.168, depth: 0.122, roundness: 3.2, offsetZ: 0.016 },
+          { y:  0.22, width: 0.145, depth: 0.104, roundness: 3.0, offsetZ: 0.030 },
+          { y:  0.30, width: 0.105, depth: 0.080, roundness: 2.8, offsetZ: 0.034 },
+        ], primary, { radial: 14 });
+
+        this.head.position.set(0, 0.34, 0.075);
         this.torso.add(this.head);
-        this.mesh(this.head, new THREE.SphereGeometry(0.11, 9, 7), skin).scale.set(0.92, 1.05, 1);
+        part(this.head, [
+          { y: -0.070, width: 0.042, depth: 0.050, roundness: 2.6, offsetZ: 0.010 },
+          { y: -0.020, width: 0.066, depth: 0.076, roundness: 2.6 },
+          { y:  0.040, width: 0.070, depth: 0.078, roundness: 2.4 },
+        ], skin, { radial: 12, dome: true });
+
         for (const [arm, side] of [[this.armL, -1], [this.armR, 1]] as const) {
-          arm.position.set(side * 0.19, 0.18, 0);
+          arm.position.set(side * 0.165, 0.16, 0.01);
           arm.rotation.x = -0.5;
           this.torso.add(arm);
-          this.mesh(arm, new THREE.CylinderGeometry(0.045, 0.036, 0.54, 6), skin, -0.27);
+          part(arm, [
+            { y:  0.02, width: 0.046, depth: 0.046, roundness: 2.5 },
+            { y: -0.22, width: 0.035, depth: 0.035, roundness: 2.4 },
+            { y: -0.48, width: 0.034, depth: 0.026, roundness: 2.8 },
+          ], skin, { radial: 10, dome: true });
         }
         for (const [leg, side] of [[this.legL, -1], [this.legR, 1]] as const) {
-          leg.position.set(side * 0.1, -0.3, 0);
+          leg.position.set(side * 0.095, -0.28, 0);
           leg.rotation.x = -0.3;
           this.torso.add(leg);
-          this.mesh(leg, new THREE.CylinderGeometry(0.06, 0.048, 0.6, 6), secondary, -0.3);
+          part(leg, [
+            { y:  0.00, width: 0.062, depth: 0.060, roundness: 2.5 },
+            { y: -0.28, width: 0.046, depth: 0.048, roundness: 2.4 },
+            { y: -0.56, width: 0.038, depth: 0.038, roundness: 2.3 },
+          ], secondary, { radial: 10 });
         }
         break;
       }
@@ -213,25 +290,54 @@ export class EnemyRig {
       // --- quadruped: long, low, horizontal. Unmistakable from above. -------
       case 'quadruped': {
         this.torso.position.y = 0.52;
-        const body = this.mesh(this.torso, new THREE.CylinderGeometry(0.19, 0.15, 0.86, 8), primary);
+        // Swept along Z, with a deep chest and a narrow haunch.
+        const body = this.mesh(this.torso, loft([
+          { y: -0.46, width: 0.115, depth: 0.130, roundness: 2.8 },
+          { y: -0.20, width: 0.155, depth: 0.170, roundness: 2.9 },
+          { y:  0.10, width: 0.170, depth: 0.195, roundness: 3.0 },
+          { y:  0.34, width: 0.140, depth: 0.150, roundness: 2.8 },
+          { y:  0.50, width: 0.100, depth: 0.105, roundness: 2.6 },
+        ], { radialSegments: 14, smoothSteps: 3 }), primary);
         body.rotation.x = Math.PI / 2;
-        this.head.position.set(0, 0.04, 0.5);
+
+        this.head.position.set(0, 0.03, 0.52);
         this.torso.add(this.head);
-        this.mesh(this.head, new THREE.BoxGeometry(0.18, 0.17, 0.3), skin).scale.z = 1.1;
-        this.mesh(this.head, new THREE.ConeGeometry(0.07, 0.18, 5), skin, -0.03, 0, 0.19).rotation.x = Math.PI / 2;
-        // Four legs, front pair forward of the mass.
+        // A muzzle rather than a box: tapering forward with a brow above.
+        const skull = this.mesh(this.head, loft([
+          { y: -0.16, width: 0.048, depth: 0.042, roundness: 2.6 },
+          { y: -0.04, width: 0.078, depth: 0.075, roundness: 2.7 },
+          { y:  0.10, width: 0.090, depth: 0.088, roundness: 2.8 },
+          { y:  0.20, width: 0.070, depth: 0.072, roundness: 2.6 },
+        ], { radialSegments: 12, smoothSteps: 3 }), skin);
+        skull.rotation.x = -Math.PI / 2;
+        for (const side of [-1, 1]) {
+          const ear = this.mesh(this.head, loft([
+            { y: 0, width: 0.026, depth: 0.014, roundness: 2.2 },
+            { y: 0.07, width: 0.008, depth: 0.006, roundness: 2 },
+          ], { radialSegments: 8, smoothSteps: 2 }), skin, 0.075, side * 0.05, -0.06);
+          ear.rotation.z = side * 0.35;
+        }
+
         const legs: [THREE.Group, number, number][] = [
-          [this.armL, -0.15, 0.3], [this.armR, 0.15, 0.3],
-          [this.legL, -0.15, -0.3], [this.legR, 0.15, -0.3],
+          [this.armL, -0.13, 0.30], [this.armR, 0.13, 0.30],
+          [this.legL, -0.13, -0.30], [this.legR, 0.13, -0.30],
         ];
         for (const [leg, x, z] of legs) {
-          leg.position.set(x, -0.06, z);
+          leg.position.set(x, -0.04, z);
           this.torso.add(leg);
-          this.mesh(leg, new THREE.CylinderGeometry(0.045, 0.035, 0.46, 6), secondary, -0.23);
+          part(leg, [
+            { y:  0.00, width: 0.052, depth: 0.052, roundness: 2.5 },
+            { y: -0.22, width: 0.032, depth: 0.032, roundness: 2.3 },
+            { y: -0.46, width: 0.028, depth: 0.034, roundness: 2.6 },
+          ], secondary, { radial: 9, dome: true });
         }
-        // A ridge of spines so it is not just a cylinder with legs.
-        for (let i = 0; i < 5; i++) {
-          this.mesh(this.torso, new THREE.ConeGeometry(0.03, 0.12, 4), accent, 0.18, 0, 0.3 - i * 0.16);
+        // A ridge of spines so it is not just a body with legs.
+        for (let i = 0; i < 6; i++) {
+          const spine = this.mesh(this.torso, loft([
+            { y: 0, width: 0.020, depth: 0.014, roundness: 2 },
+            { y: 0.09, width: 0.003, depth: 0.002, roundness: 2 },
+          ], { radialSegments: 6, smoothSteps: 2 }), accent, 0.16, 0, 0.32 - i * 0.15);
+          spine.rotation.x = -0.25;
         }
         break;
       }
@@ -240,19 +346,24 @@ export class EnemyRig {
       case 'wisp': {
         this.baseY = 0.5;
         this.torso.position.y = 1.05;
-        const core = this.mesh(this.torso, new THREE.IcosahedronGeometry(0.2, 1), glowMat);
+        const core = this.mesh(this.torso, new THREE.IcosahedronGeometry(0.17, 1), glowMat);
         core.name = 'core';
-        // A shroud that hangs below, so it has a silhouette and not just a dot.
-        for (let i = 0; i < 6; i++) {
-          const a = (i / 6) * TAU;
+        for (let i = 0; i < 7; i++) {
+          const a = (i / 7) * TAU;
           const strip = this.mesh(
-            this.torso, new THREE.BoxGeometry(0.07, 0.5, 0.02),
+            this.torso,
+            loft([
+              { y:  0.06, width: 0.030, depth: 0.010, roundness: 2.6 },
+              { y: -0.16, width: 0.044, depth: 0.012, roundness: 2.8 },
+              { y: -0.44, width: 0.024, depth: 0.008, roundness: 2.4 },
+            ], { radialSegments: 8, smoothSteps: 3 }),
             material('cloth', v.secondary, seed + 10 + i, { transparent: true, opacity: 0.72 }),
-            -0.32, Math.cos(a) * 0.13, Math.sin(a) * 0.13,
+            -0.20, Math.cos(a) * 0.12, Math.sin(a) * 0.12,
           );
           strip.rotation.y = -a;
+          strip.rotation.z = Math.cos(a) * 0.2;
         }
-        const halo = new THREE.Mesh(new THREE.RingGeometry(0.26, 0.34, 16), emissive(v.accent, 0.35));
+        const halo = new THREE.Mesh(new THREE.RingGeometry(0.24, 0.32, 18), emissive(v.accent, 0.25));
         halo.rotation.x = -Math.PI / 2;
         halo.position.y = -0.1;
         this.torso.add(halo);
@@ -262,27 +373,39 @@ export class EnemyRig {
       // --- tall: elongated, robed, no visible legs. Reads as "wrong". -------
       case 'tall': {
         this.torso.position.y = 1.0;
-        // A narrower taper plus real shoulders: a plain wide cone reads as a
-        // traffic cone rather than as something wearing a robe.
-        const robe = this.mesh(this.torso, new THREE.CylinderGeometry(0.15, 0.29, 1.2, 9), primary);
-        robe.position.y = -0.2;
-        const shoulders = this.mesh(this.torso, new THREE.BoxGeometry(0.44, 0.16, 0.22), secondary, 0.3);
-        shoulders.rotation.z = 0.04;
-        this.head.position.y = 0.5;
+        // A robe that falls and flares, with real shoulders under it.
+        part(this.torso, [
+          { y:  0.34, width: 0.085, depth: 0.072, roundness: 2.8 },
+          { y:  0.22, width: 0.150, depth: 0.110, roundness: 3.1 },
+          { y:  0.02, width: 0.155, depth: 0.118, roundness: 3.0 },
+          { y: -0.34, width: 0.190, depth: 0.150, roundness: 2.8 },
+          { y: -0.72, width: 0.245, depth: 0.200, roundness: 2.6 },
+        ], primary, { radial: 16 });
+
+        this.head.position.y = 0.48;
         this.torso.add(this.head);
-        const skull = this.mesh(this.head, new THREE.SphereGeometry(0.11, 9, 7), skin);
-        skull.scale.set(0.82, 1.3, 0.85);
+        part(this.head, [
+          { y: -0.080, width: 0.034, depth: 0.042, roundness: 2.6, offsetZ: 0.010 },
+          { y: -0.030, width: 0.056, depth: 0.066, roundness: 2.6 },
+          { y:  0.030, width: 0.064, depth: 0.072, roundness: 2.4 },
+          { y:  0.085, width: 0.048, depth: 0.052, roundness: 2.3, offsetZ: -0.008 },
+        ], skin, { radial: 12, dome: true });
+
         if (v.glow) {
-          const eyes = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), emissive(v.accent, 0.9));
-          eyes.position.set(0, 0.02, 0.09);
-          eyes.scale.x = 2.2;
+          const eyes = new THREE.Mesh(new THREE.SphereGeometry(0.024, 7, 6), emissive(v.accent, 0.75));
+          eyes.position.set(0, 0.01, 0.062);
+          eyes.scale.x = 2.4;
           this.head.add(eyes);
         }
         for (const [arm, side] of [[this.armL, -1], [this.armR, 1]] as const) {
-          arm.position.set(side * 0.17, 0.3, 0);
+          arm.position.set(side * 0.145, 0.28, 0);
           this.torso.add(arm);
-          this.mesh(arm, new THREE.CylinderGeometry(0.04, 0.03, 0.74, 6), primary, -0.37);
-          this.mesh(arm, new THREE.BoxGeometry(0.055, 0.14, 0.045), skin, -0.78);
+          part(arm, [
+            { y:  0.02, width: 0.048, depth: 0.048, roundness: 2.6 },
+            { y: -0.34, width: 0.034, depth: 0.034, roundness: 2.4 },
+            { y: -0.66, width: 0.028, depth: 0.026, roundness: 2.4 },
+            { y: -0.78, width: 0.030, depth: 0.022, roundness: 2.8 },
+          ], primary, { radial: 10, dome: true });
         }
         break;
       }
@@ -290,43 +413,61 @@ export class EnemyRig {
       // --- armoured: the plated silhouette used by wardens and the boss. ----
       case 'armoured': {
         this.torso.position.y = 1.08;
-        this.mesh(this.torso, new THREE.BoxGeometry(0.52, 0.66, 0.4), accent);
-        // Layered fauld, so the outline is not a plain box.
+        part(this.torso, [
+          { y: -0.30, width: 0.165, depth: 0.120, roundness: 3.3 },
+          { y: -0.10, width: 0.195, depth: 0.140, roundness: 3.5 },
+          { y:  0.12, width: 0.215, depth: 0.150, roundness: 3.5 },
+          { y:  0.28, width: 0.190, depth: 0.126, roundness: 3.3 },
+          { y:  0.36, width: 0.140, depth: 0.100, roundness: 3.0 },
+        ], accent, { radial: 16 });
+
+        // A layered fauld below the waist.
         for (let i = 0; i < 3; i++) {
-          this.mesh(this.torso, new THREE.BoxGeometry(0.5 - i * 0.03, 0.1, 0.38), accent, -0.36 - i * 0.09);
+          const plate = this.mesh(this.torso, loft([
+            { y: -0.045, width: 0.175 - i * 0.012, depth: 0.128 - i * 0.008, roundness: 3.6 },
+            { y:  0.045, width: 0.182 - i * 0.012, depth: 0.134 - i * 0.008, roundness: 3.6 },
+          ], { radialSegments: 14, smooth: false, capStart: false, capEnd: false }),
+            accent, -0.34 - i * 0.085);
+          void plate;
         }
+
         this.head.position.y = 0.42;
         this.torso.add(this.head);
-        // A tapered great-helm, not a ball: the flat faces catch the key light
-        // and give the head a direction you can read at distance.
-        const helm = this.mesh(this.head, new THREE.CylinderGeometry(0.1, 0.14, 0.26, 6), accent);
-        helm.rotation.y = Math.PI / 6;
-        this.mesh(this.head, new THREE.BoxGeometry(0.045, 0.15, 0.05), accent, -0.03, 0, 0.12);
-        this.mesh(this.head, new THREE.BoxGeometry(0.03, 0.1, 0.3), accent, 0.16);
+        // A tapered great-helm whose flat faces catch the key light.
+        part(this.head, [
+          { y: -0.085, width: 0.070, depth: 0.076, roundness: 4.0 },
+          { y: -0.010, width: 0.086, depth: 0.094, roundness: 3.6 },
+          { y:  0.060, width: 0.074, depth: 0.080, roundness: 3.2 },
+          { y:  0.105, width: 0.040, depth: 0.044, roundness: 2.8 },
+        ], accent, { radial: 10, dome: true });
         if (v.glow) {
-          const visor = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.025, 0.02), emissive(v.accent, 0.85));
-          visor.position.set(0, 0.01, 0.13);
+          const visor = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.018, 0.016), emissive(v.accent, 0.7));
+          visor.position.set(0, -0.005, 0.088);
           this.head.add(visor);
         }
+
         for (const [arm, side] of [[this.armL, -1], [this.armR, 1]] as const) {
-          arm.position.set(side * 0.31, 0.22, 0);
+          arm.position.set(side * 0.235, 0.20, 0);
           this.torso.add(arm);
-          // Layered angled plates rather than a sphere: a sphere becomes a
-          // giant orb once the boss is scaled up, and reads as a blob.
-          for (let i = 0; i < 3; i++) {
-            const lame = this.mesh(
-              arm, new THREE.BoxGeometry(0.3 - i * 0.03, 0.1, 0.26 - i * 0.02),
-              accent, 0.08 - i * 0.09, side * 0.03,
-            );
-            lame.rotation.z = side * (0.22 + i * 0.08);
-          }
-          this.mesh(arm, new THREE.CylinderGeometry(0.07, 0.058, 0.54, 7), secondary, -0.3);
-          this.mesh(arm, new THREE.BoxGeometry(0.11, 0.13, 0.1), accent, -0.6);
+          const pad = this.mesh(arm, shell(0.145, {
+            arc: Math.PI * 0.56, thickness: 0.016, segments: 14,
+            scaleX: 1.22, scaleY: 0.9, scaleZ: 1.06,
+          }), accent, 0.045);
+          pad.rotation.z = side * 0.14;
+          part(arm, [
+            { y: -0.04, width: 0.062, depth: 0.060, roundness: 2.7 },
+            { y: -0.32, width: 0.050, depth: 0.048, roundness: 2.6 },
+            { y: -0.56, width: 0.058, depth: 0.046, roundness: 3.0 },
+          ], secondary, { radial: 12, dome: true });
         }
         for (const [leg, side] of [[this.legL, -1], [this.legR, 1]] as const) {
-          leg.position.set(side * 0.14, -0.4, 0);
+          leg.position.set(side * 0.125, -0.38, 0);
           this.torso.add(leg);
-          this.mesh(leg, new THREE.CylinderGeometry(0.09, 0.075, 0.64, 7), accent, -0.32);
+          part(leg, [
+            { y:  0.00, width: 0.086, depth: 0.082, roundness: 2.9 },
+            { y: -0.34, width: 0.066, depth: 0.064, roundness: 2.7 },
+            { y: -0.62, width: 0.072, depth: 0.060, roundness: 3.0 },
+          ], accent, { radial: 12, dome: true });
         }
         break;
       }
@@ -400,7 +541,7 @@ export class EnemyRig {
         g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.024, 0.95, 6), wood).translateY(0.3));
         const head = new THREE.Mesh(
           new THREE.IcosahedronGeometry(0.06, 0),
-          material('bone', v.accent, seed + 73, { emissive: v.accent, emissiveIntensity: 1.8 }),
+          material('bone', v.accent, seed + 73, { emissive: v.accent, emissiveIntensity: 0.7 }),
         );
         head.position.y = 0.8;
         g.add(head);
@@ -491,9 +632,24 @@ export class EnemyRig {
         core.position.y = 0.1;
         core.name = 'eliteCore';
         g.add(core);
-        const shell = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), emissive(tint, 0.18));
-        shell.position.y = 0.1;
-        g.add(shell);
+        // A glowing shell around the chest reads as a bright disc once bloom
+        // gets hold of it, and it hides the very silhouette §22 asks an elite
+        // to change. The cue is put where it cannot occlude the creature
+        // instead: a ring at the feet, which is also where the player is
+        // already looking for hit boxes, plus three shards orbiting the core.
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(0.52, 0.018, 5, 28), emissive(tint, 0.5),
+        );
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = -0.88;
+        ring.name = 'eliteRing';
+        g.add(ring);
+        for (let i = 0; i < 3; i++) {
+          const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.06), mat);
+          const a = (i / 3) * TAU;
+          shard.position.set(Math.cos(a) * 0.34, 0.1 + Math.sin(a * 2) * 0.12, Math.sin(a) * 0.3);
+          g.add(shard);
+        }
         break;
       }
     }
@@ -596,6 +752,8 @@ export class EnemyRig {
       core.rotation.y += dt * 1.8;
       core.scale.setScalar(1 + Math.sin(p * 3) * 0.08);
     }
+    const ring = this.eliteCrest.getObjectByName('eliteRing');
+    if (ring) ring.rotation.z -= dt * 0.9;
   }
 
   dispose(): void {

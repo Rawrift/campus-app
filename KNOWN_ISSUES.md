@@ -28,6 +28,16 @@ the architecture is built to accept them later.
 
 ## Known defects
 
+### Screenshots are the only visual regression test
+Four faults in this release — a whole terrain layer back-face culled, every
+texture painted 2.6x too dark, wall UVs stretched by the wall height, and mire
+mirroring the sky — were invisible to 120 unit tests and 45 browser checks. All
+four were found by looking at rendered frames and then isolating meshes by hand.
+`tests/terrain.test.ts` now covers the winding predicate, but nothing asserts
+that a surface is lit, textured or the colour it was authored as. A perceptual
+check (sample the rendered ground, assert its mean and variance stay in a band)
+would have caught three of the four and does not exist.
+
 ### Nobody has played it
 Still the honest headline limitation. An automated bot now plays the full route
 and the boss as all three archetypes, which proves the run is completable and

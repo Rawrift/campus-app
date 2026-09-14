@@ -38,8 +38,8 @@ import {
  * keep vertical faces legible while the scene stays firmly dark.
  */
 const OUTDOOR_AMBIENCE: Ambience = {
-  ambientColour: 0x565e6b, ambientIntensity: 0.85,
-  sunColour: 0x9a8b70, sunIntensity: 1.35,
+  ambientColour: 0x565e6b, ambientIntensity: 0.34,
+  sunColour: 0x9a8b70, sunIntensity: 0.62,
   sunAngle: [-0.85, 2.3],
   fogColour: 0x2b2c2a, fogNear: 22, fogFar: 66,
   groundColour: 0x6e6149, wallColour: 0x6b6557,
@@ -48,8 +48,8 @@ const OUTDOOR_AMBIENCE: Ambience = {
 
 const VILLAGE_AMBIENCE: Ambience = {
   ...OUTDOOR_AMBIENCE,
-  ambientColour: 0x5e6673, ambientIntensity: 0.95,
-  sunColour: 0xa2947a, sunIntensity: 1.5,
+  ambientColour: 0x59657a, ambientIntensity: 0.52,
+  sunColour: 0xa2947a, sunIntensity: 0.78,
   fogColour: 0x34332f, fogNear: 26, fogFar: 78,
   groundColour: 0x756750, wallColour: 0x736c5c,
   wallHeight: 2.2,
@@ -63,8 +63,8 @@ const VILLAGE_AMBIENCE: Ambience = {
  * between darkness as a mechanic and darkness as a defect.
  */
 const CRYPT_AMBIENCE: Ambience = {
-  ambientColour: 0x4c4a4a, ambientIntensity: 0.44,
-  sunColour: 0x474650, sunIntensity: 0.24,
+  ambientColour: 0x3e4756, ambientIntensity: 0.30,
+  sunColour: 0x474650, sunIntensity: 0.12,
   sunAngle: [-0.7, 1.6],
   fogColour: 0x0e0e12, fogNear: 11, fogFar: 38,
   groundColour: 0x635a4b, wallColour: 0x685f50,

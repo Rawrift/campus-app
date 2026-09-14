@@ -79,7 +79,7 @@ export class Hud {
   private victoryScreen!: HTMLDivElement;
 
   /** Settings surfaced in the menu (§33 — damage numbers are optional). */
-  settings = { damageNumbers: true, screenShake: true, gore: true, torchShadows: false };
+  settings = { damageNumbers: true, screenShake: true, gore: true, bloom: true, torchShadows: false };
 
   private selectedArchetype = 'ironbound';
   /** Notified when a graphics option changes, so the renderer can react. */
@@ -781,6 +781,7 @@ export class Hud {
       ['Damage numbers', 'damageNumbers'],
       ['Screen shake', 'screenShake'],
       ['Gore', 'gore'],
+      ['Bloom', 'bloom'],
       ['Torch shadows (costly)', 'torchShadows'],
     ];
     for (const [label, key] of toggles) {

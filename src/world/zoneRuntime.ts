@@ -14,6 +14,7 @@ import { Rng } from '@/core/rng';
 import { dist2 } from '@/core/math';
 import { generateItem } from '@/sim/loot';
 import { ZONES } from './zones';
+import { groundClutter } from './zoneDef';
 import type { Interactable, Prop, SpawnInstruction, ZoneDef } from './zoneDef';
 
 export interface LoadedZone {
@@ -53,7 +54,12 @@ export class ZoneRuntime {
     const rng = new Rng(`${this.seed}:${zoneId}`);
     const grid = new NavGrid(def.width, def.height);
     def.build(grid, rng);
-    const props = def.decorate(grid, rng);
+    // Ground detail is added for every zone rather than authored per zone: it
+    // is scenery, not level design, and every walkable surface wants it.
+    const props = [
+      ...def.decorate(grid, rng),
+      ...groundClutter(grid, rng, def.ambience.interior, def.ambience.interior ? 0.4 : 0.6),
+    ];
     const interactables = def.interactables().map((i) => ({
       ...i, used: this.consumed.has(i.id),
     }));

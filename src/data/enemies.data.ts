@@ -204,7 +204,7 @@ export const ENEMIES = new Registry<EnemyDef>('enemies', [
     }],
     aggroRange: 8, leashRange: 30, preferredRange: 1.6, strafe: 0.1, alertTime: 0.7, fleeBelow: 0,
     xp: 26, dropChance: 0.17, dropRolls: 1,
-    visual: { build: 'tall', scale: 1.08, primary: 0x5c5a72, secondary: 0x32303f, accent: 0xa79cc4, cloth: 0.7, glow: 0.25 },
+    visual: { build: 'tall', scale: 1.08, primary: 0x5c5a72, secondary: 0x32303f, accent: 0x8479a0, cloth: 0.7, glow: 0.25 },
     note: 'The body kept the habit of standing. Nothing else stayed.',
   },
   {
@@ -223,7 +223,7 @@ export const ENEMIES = new Registry<EnemyDef>('enemies', [
     }],
     aggroRange: 13, leashRange: 28, preferredRange: 8.5, strafe: 1.0, alertTime: 0.3, fleeBelow: 0.25,
     xp: 34, dropChance: 0.24, dropRolls: 1,
-    visual: { build: 'wisp', scale: 0.9, primary: 0xd2762c, secondary: 0x6a4030, accent: 0xffc27a, glow: 1.0 },
+    visual: { build: 'wisp', scale: 0.9, primary: 0xa85c22, secondary: 0x5a3628, accent: 0xd89a52, glow: 1.0 },
   },
   {
     id: 'hollow_gleaner', name: 'Bone-Gleaner',
@@ -249,7 +249,7 @@ export const ENEMIES = new Registry<EnemyDef>('enemies', [
     ],
     aggroRange: 12, leashRange: 26, preferredRange: 7, strafe: 0.5, alertTime: 0.5, fleeBelow: 0.3,
     xp: 58, dropChance: 0.34, dropRolls: 1, rarityBonus: 0.5,
-    visual: { build: 'tall', scale: 1.05, primary: 0x635a78, secondary: 0x36313f, accent: 0xd9c89a, cloth: 0.85, weapon: 'staff', glow: 0.4 },
+    visual: { build: 'tall', scale: 1.05, primary: 0x635a78, secondary: 0x36313f, accent: 0x9d8f68, cloth: 0.85, weapon: 'staff', glow: 0.4 },
     note: 'It is sorting them. It seems to be looking for a particular one.',
   },
 
@@ -271,7 +271,7 @@ export const ENEMIES = new Registry<EnemyDef>('enemies', [
     }],
     aggroRange: 14, leashRange: 40, preferredRange: 1.2, strafe: 0.4, alertTime: 0.05, fleeBelow: 0,
     xp: 0, dropChance: 0, dropRolls: 0,
-    visual: { build: 'wisp', scale: 0.85, primary: 0xd28a3c, secondary: 0x6a4a30, accent: 0xffd08a, glow: 0.9 },
+    visual: { build: 'wisp', scale: 0.85, primary: 0xa86c28, secondary: 0x5a3e28, accent: 0xd8a459, glow: 0.9 },
   },
 
   // ======================= BOSS ===========================================
@@ -330,7 +330,7 @@ export const ENEMIES = new Registry<EnemyDef>('enemies', [
     ],
     aggroRange: 16, leashRange: 999, preferredRange: 2.6, strafe: 0.25, alertTime: 0.8, fleeBelow: 0,
     xp: 900, dropChance: 1, dropRolls: 5, rarityBonus: 5,
-    visual: { build: 'armoured', scale: 1.55, primary: 0x3e3a44, secondary: 0x211f26, accent: 0xc8a349, weapon: 'bell', glow: 0.5 },
+    visual: { build: 'armoured', scale: 1.55, primary: 0x3e3a44, secondary: 0x211f26, accent: 0xa3853a, weapon: 'bell', glow: 0.5 },
     note: 'He rang the hours for forty years. Then he rang one that was not an hour.',
   },
 ]);

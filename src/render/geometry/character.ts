@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { Rng } from '@/core/rng';
 import { clamp, damp, lerp, TAU } from '@/core/math';
 import { material } from '../materials';
+import { loft, shell, type Section } from './loft';
 import {
   buildBelt, buildBoot, buildCloak, buildGlove, buildHelmet,
   buildLegPiece, buildShoulder, buildTorso, buildWeapon,
@@ -126,43 +127,134 @@ export class CharacterRig {
 
     // --- body meshes -----------------------------------------------------
     const limb = body.limbThickness;
-    const add = (parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, y: number) => {
+    const shoulders = body.shoulderWidth;
+    const torsoDepth = body.torsoDepth;
+
+    const add = (parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material) => {
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.y = y;
       mesh.castShadow = true;
       parent.add(mesh);
       this.bodyParts.push(mesh);
       return mesh;
     };
 
-    // Torso: the undershirt, always present so an unarmoured chest is not nude.
-    add(chest, new THREE.BoxGeometry(0.34 * body.shoulderWidth, 0.4, 0.21 * body.torsoDepth), cloth, 0.0);
-    add(spine, new THREE.BoxGeometry(0.29, 0.2, 0.19 * body.torsoDepth), cloth2, 0.05);
-    add(hips, new THREE.BoxGeometry(0.3, 0.16, 0.19 * body.torsoDepth), cloth2, -0.05);
+    /**
+     * Sections are authored as a handful of keys and splined into a smooth
+     * form. The bulges are anatomical, not decorative: a deltoid at the top of
+     * the upper arm, a calf belly a third of the way down the shin. They are
+     * what stop a limb reading as a cylinder from the ARPG camera.
+     */
+    const limbSections = (keys: Section[], thickness: number): Section[] =>
+      keys.map((k) => ({
+        ...k,
+        width: k.width * thickness,
+        depth: (k.depth ?? k.width) * thickness,
+      }));
 
-    // Head, neck, hair.
-    add(neck, new THREE.CylinderGeometry(0.052, 0.06, 0.1, 7), skin, 0.04);
-    const skull = add(head, new THREE.SphereGeometry(0.115, 12, 10), skin, 0.02);
-    skull.scale.set(0.94, 1.12, 1.02);
-    const jaw = add(head, new THREE.BoxGeometry(0.13, 0.08, 0.13), skin, -0.06);
-    jaw.scale.z = 1.05;
-    const crown = add(head, new THREE.SphereGeometry(0.12, 10, 8, 0, TAU, 0, Math.PI * 0.6), hair, 0.035);
-    crown.scale.set(1.02, 0.95, 1.05);
+    // --- torso: a rounded box that narrows at the waist and flares at the
+    //     chest. Superellipse roundness near 3 reads as a ribcage; a plain
+    //     ellipse reads as a barrel and a box reads as a crate.
+    add(chest, loft([
+      { y: -0.32, width: 0.130 * shoulders, depth: 0.092 * torsoDepth, roundness: 3.0 },
+      { y: -0.20, width: 0.140 * shoulders, depth: 0.100 * torsoDepth, roundness: 3.1 },
+      { y: -0.08, width: 0.163 * shoulders, depth: 0.116 * torsoDepth, roundness: 3.2 },
+      { y:  0.05, width: 0.182 * shoulders, depth: 0.126 * torsoDepth, roundness: 3.3 },
+      { y:  0.15, width: 0.190 * shoulders, depth: 0.118 * torsoDepth, roundness: 3.4 },
+      { y:  0.23, width: 0.168 * shoulders, depth: 0.100 * torsoDepth, roundness: 3.2 },
+    ], { radialSegments: 16, smoothSteps: 3 }), cloth);
 
-    // Arms and legs.
+    // The hips, as a separate form so the waist has a real join.
+    add(hips, loft([
+      { y: -0.12, width: 0.118, depth: 0.092 * torsoDepth, roundness: 3.0 },
+      { y: -0.02, width: 0.132, depth: 0.100 * torsoDepth, roundness: 3.1 },
+      { y:  0.08, width: 0.126, depth: 0.094 * torsoDepth, roundness: 3.0 },
+    ], { radialSegments: 14, smoothSteps: 3 }), cloth2);
+
+    // --- neck and head ---------------------------------------------------
+    add(neck, loft([
+      { y: -0.01, width: 0.050, depth: 0.048, roundness: 2.4 },
+      { y:  0.06, width: 0.046, depth: 0.046, roundness: 2.3 },
+      { y:  0.11, width: 0.050, depth: 0.050, roundness: 2.3 },
+    ], { radialSegments: 12, smoothSteps: 2 }), skin);
+
+    // A skull with a jaw, a brow and a cranium, rather than a sphere. The
+    // slight forward offset through the middle sections gives it a face.
+    add(head, loft([
+      { y: -0.095, width: 0.044, depth: 0.052, roundness: 2.6, offsetZ: 0.012 },
+      { y: -0.060, width: 0.066, depth: 0.076, roundness: 2.7, offsetZ: 0.010 },
+      { y: -0.020, width: 0.079, depth: 0.089, roundness: 2.6, offsetZ: 0.006 },
+      { y:  0.020, width: 0.084, depth: 0.092, roundness: 2.5 },
+      { y:  0.065, width: 0.082, depth: 0.088, roundness: 2.4, offsetZ: -0.004 },
+      { y:  0.100, width: 0.070, depth: 0.074, roundness: 2.3, offsetZ: -0.008 },
+    ], { radialSegments: 16, smoothSteps: 3, domeEnd: true }), skin);
+
+    // Hair as a shell over the cranium: it has a rim and a parting line, which
+    // a scaled sphere does not.
+    const crown = add(head, shell(0.098, {
+      arc: Math.PI * 0.52, thickness: 0.016, segments: 14,
+      scaleX: 0.92, scaleY: 1.05, scaleZ: 1.0,
+    }), hair);
+    crown.position.set(0, 0.036, -0.006);
+
+    // --- arms -------------------------------------------------------------
+    const upperArmKeys: Section[] = [
+      { y:  0.010, width: 0.056, depth: 0.054, roundness: 2.5 },
+      { y: -0.060, width: 0.053, depth: 0.051, roundness: 2.4 },
+      { y: -0.150, width: 0.045, depth: 0.044, roundness: 2.3 },
+      { y: -0.250, width: 0.040, depth: 0.039, roundness: 2.3 },
+    ];
+    const forearmKeys: Section[] = [
+      { y:  0.005, width: 0.041, depth: 0.040, roundness: 2.3 },
+      { y: -0.070, width: 0.043, depth: 0.041, roundness: 2.3 },
+      { y: -0.175, width: 0.033, depth: 0.032, roundness: 2.2 },
+      { y: -0.245, width: 0.029, depth: 0.028, roundness: 2.2 },
+    ];
+
     for (const [upper, fore, hand] of [
       [upperArmL, forearmL, handL], [upperArmR, forearmR, handR],
     ] as const) {
-      add(upper, new THREE.CylinderGeometry(0.052 * limb, 0.046 * limb, SEG.upperArm, 7), cloth, -SEG.upperArm / 2);
-      add(fore, new THREE.CylinderGeometry(0.046 * limb, 0.04 * limb, SEG.forearm, 7), skin, -SEG.forearm / 2);
-      add(hand, new THREE.BoxGeometry(0.075 * limb, 0.1, 0.06 * limb), skin, -0.03);
+      add(upper, loft(limbSections(upperArmKeys, limb), { radialSegments: 12, smoothSteps: 3 }), cloth);
+      add(fore, loft(limbSections(forearmKeys, limb), { radialSegments: 12, smoothSteps: 3 }), skin);
+      // The hand: a flattened rounded box with a thumb mass, sized so a weapon
+      // grip reads against it (§3 asks for hands big enough to read weapons).
+      const palm = add(hand, loft([
+        { y:  0.00, width: 0.032, depth: 0.022, roundness: 3.0 },
+        { y: -0.045, width: 0.037, depth: 0.024, roundness: 3.2 },
+        { y: -0.095, width: 0.033, depth: 0.021, roundness: 3.0 },
+      ], { radialSegments: 10, smoothSteps: 3, domeEnd: true }), skin);
+      palm.scale.setScalar(limb);
     }
+
+    // --- legs -------------------------------------------------------------
+    const thighKeys: Section[] = [
+      { y:  0.000, width: 0.083, depth: 0.081, roundness: 2.6 },
+      { y: -0.090, width: 0.080, depth: 0.078, roundness: 2.5 },
+      { y: -0.280, width: 0.064, depth: 0.062, roundness: 2.4 },
+      { y: -0.430, width: 0.055, depth: 0.054, roundness: 2.4 },
+    ];
+    const shinKeys: Section[] = [
+      { y:  0.000, width: 0.057, depth: 0.056, roundness: 2.4 },
+      { y: -0.090, width: 0.060, depth: 0.062, roundness: 2.4, offsetZ: -0.008 },
+      { y: -0.280, width: 0.038, depth: 0.038, roundness: 2.3 },
+      { y: -0.410, width: 0.033, depth: 0.033, roundness: 2.3 },
+    ];
+    const bootMat = material('leather', 0x3f3025, seed + 5);
+
     for (const [thigh, shin, foot] of [
       [thighL, shinL, footL], [thighR, shinR, footR],
     ] as const) {
-      add(thigh, new THREE.CylinderGeometry(0.072 * limb, 0.06 * limb, SEG.thigh, 7), cloth2, -SEG.thigh / 2);
-      add(shin, new THREE.CylinderGeometry(0.058 * limb, 0.048 * limb, SEG.shin, 7), cloth2, -SEG.shin / 2);
-      add(foot, new THREE.BoxGeometry(0.09, 0.06, 0.2), material('leather', 0x3f3025, seed + 5), -0.02).position.z = 0.045;
+      add(thigh, loft(limbSections(thighKeys, limb), { radialSegments: 12, smoothSteps: 3 }), cloth2);
+      add(shin, loft(limbSections(shinKeys, limb), { radialSegments: 12, smoothSteps: 3 }), cloth2);
+      // A foot shape with an arch and a toe, swept along Z rather than Y.
+      const shoe = add(foot, loft([
+        { y: -0.100, width: 0.040, depth: 0.030, roundness: 3.2 },
+        { y: -0.030, width: 0.047, depth: 0.036, roundness: 3.4 },
+        { y:  0.050, width: 0.046, depth: 0.030, roundness: 3.4 },
+        { y:  0.110, width: 0.036, depth: 0.022, roundness: 3.0 },
+      ], { radialSegments: 10, smoothSteps: 3, domeEnd: true }), bootMat);
+      shoe.rotation.x = Math.PI / 2;
+      shoe.position.set(0, -0.028, 0.012);
+      shoe.scale.setScalar(limb);
     }
   }
 

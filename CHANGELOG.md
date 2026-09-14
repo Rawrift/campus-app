@@ -1,5 +1,75 @@
 # CHANGELOG
 
+## 0.3.0 — The world becomes visible
+
+A pass on visual fidelity, prompted by the honest verdict that the game so far
+was "geometric shapes". Most of it turned out to be four faults rather than a
+missing art budget.
+
+### The ground was never drawn
+
+Every horizontal terrain quad — floor, path, mire, the surround beyond the
+playable area, and the wall tops — was emitted with its corners in clockwise
+order seen from above while carrying an upward normal. With `side: FrontSide`
+all of it was back-face culled. Nothing errored; the background simply showed
+through where the ground should be, and a uniform background reads exactly like
+a flat, untextured floor. Found by hiding the terrain meshes one at a time and
+noticing that hiding the floor changed nothing on screen.
+
+`quad()` now derives its triangle order from the normal it is given rather than
+trusting the corner order, so no call site can reintroduce it, and
+`tests/terrain.test.ts` covers the predicate.
+
+### Every texture in the game was painted 2.6x too dark
+
+Under three.js colour management `new THREE.Color(0x6e6149).r` is the **linear**
+component (0.156), not the 0.43 the hex describes. All procedural textures are
+painted into sRGB canvases, so writing `colour.r * 255` put the linear number in
+as though it were sRGB: mid-tan earth landed at RGB 40 instead of 110. That is a
+flat darkening plus a loss of saturation applied to every surface at once, and
+it was being compensated for with far too much light — which is what made the
+world read as grey shapes under a floodlight.
+
+Textures now go back through sRGB before they are painted, and the lighting has
+come down to match: ambient and sun roughly halved in every zone, torches and
+braziers from 34/52 to 15/23, exposure from 1.12 to 1.05.
+
+### Surfaces that lied about their material
+
+- **Walls read as vertical planks.** A wall face is one tile wide and
+  `wallHeight` tall, but both UV axes got the same scale, stretching the
+  stonework by that factor. Each axis is now scaled by the length it spans, so
+  the masonry courses are square.
+- **Mire read as pale plastic.** At roughness 0.35 it mirrored the sky gradient
+  out of the environment map and every mire tile became a flat blue rectangle.
+  Now 0.62 and darker: a wet sheen off the torches, no sky.
+- **The ground tiled visibly.** Gravel was clipped at the texture edges and cart
+  ruts did not meet across the wrap, so the repeat drew a dead-straight grid
+  across the zone. Stones are drawn through all nine wraps, ruts close on
+  themselves and alternate axis, and the per-tile height jitter — which opened a
+  hairline crack along every shared edge — is gone.
+
+### Elites stopped hiding themselves
+
+The `core` modifier put an additive sphere around the creature's chest. Bloom
+turned it into an opaque disc wider than the enemy, which hid the very
+silhouette §22 asks an elite to change. It is now a ring at the feet plus three
+orbiting shards.
+
+### Models
+
+Bodies, equipment and all seven enemy body plans are built by lofting
+hand-authored cross-sections (`src/render/geometry/loft.ts`) rather than from
+boxes, spheres and cylinders — ribcages that taper to a waist, blades with a
+lens-shaped section, helmets as shell plus brow band plus cheek lames, a spine
+that curves rather than a tilted tube.
+
+### Also
+
+- `renderer.info` no longer reports the output pass's single fullscreen
+  triangle as the whole frame; the reset is held until the next frame so every
+  composer pass is counted.
+
 ## 0.2.0 — Playable build
 
 Hosting, plus the balance work that only became possible once the game could

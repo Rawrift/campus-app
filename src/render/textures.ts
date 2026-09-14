@@ -96,11 +96,63 @@ function toDataTexture(canvas: HTMLCanvasElement, repeat = 1): THREE.CanvasTextu
 export interface SurfaceMaps {
   map: THREE.CanvasTexture;
   roughnessMap: THREE.CanvasTexture;
+  /** Optional surface relief, for the large flat planes that need it most. */
+  normalMap?: THREE.CanvasTexture;
+}
+
+/**
+ * Builds a tangent-space normal map from a height field by finite differences.
+ *
+ * A floor is the largest surface on screen and its geometric normal never
+ * changes, so without this every square metre of it shades identically and the
+ * eye reads "flat plane" no matter how detailed the albedo is. Relief is what
+ * makes a raking light reveal that the ground has a surface.
+ */
+function normalFromHeight(height: Float32Array, size: number, strength: number): THREE.CanvasTexture {
+  const { canvas, ctx } = makeCanvas(size);
+  const img = ctx.createImageData(size, size);
+  const at = (x: number, y: number) =>
+    height[((y + size) % size) * size + ((x + size) % size)]!;
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = (at(x + 1, y) - at(x - 1, y)) * strength;
+      const dy = (at(x, y + 1) - at(x, y - 1)) * strength;
+      // Normalise (-dx, -dy, 1) and pack into 0..255.
+      const len = Math.hypot(dx, dy, 1);
+      const i = (y * size + x) * 4;
+      img.data[i] = ((-dx / len) * 0.5 + 0.5) * 255;
+      img.data[i + 1] = ((-dy / len) * 0.5 + 0.5) * 255;
+      img.data[i + 2] = ((1 / len) * 0.5 + 0.5) * 255;
+      img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return toDataTexture(canvas);
 }
 
 // ---------------------------------------------------------------------------
 // Generators
 // ---------------------------------------------------------------------------
+
+/**
+ * A colour's components in *display* space, ready to write into a canvas.
+ *
+ * Under three.js colour management `new THREE.Color(0x6e6149).r` is the
+ * **linear** component (0.156), not the 0.43 the hex literal describes. Every
+ * texture here is painted into an sRGB canvas, so writing `colour.r * 255`
+ * paints the linear number as though it were sRGB: a mid-tan earth lands at
+ * RGB 40 instead of 110. That is a flat ~2.6x darkening plus a loss of
+ * saturation applied to every surface in the game at once, which is what made
+ * the world read as untextured grey shapes under a floodlight. Going back
+ * through sRGB here keeps the authored hex and the painted pixel the same
+ * colour.
+ */
+function displayColour(hex: number): { r: number; g: number; b: number } {
+  const out = { r: 0, g: 0, b: 0 };
+  new THREE.Color(hex).getRGB(out, THREE.SRGBColorSpace);
+  return out;
+}
 
 /**
  * Aged metal: a dark base, broad rust blooms, and bright scratches along the
@@ -111,7 +163,7 @@ export function metalSurface(seed: number, base: number, rustAmount = 0.5): Surf
   const { canvas, ctx } = makeCanvas();
   const { canvas: rc, ctx: rctx } = makeCanvas();
 
-  const c = new THREE.Color(base);
+  const c = displayColour(base);
   const grain = valueNoise(rng, SIZE, 6, 4);
   const rust = valueNoise(new Rng(seed + 7), SIZE, 3, 3);
 
@@ -134,7 +186,10 @@ export function metalSurface(seed: number, base: number, rustAmount = 0.5): Surf
     img.data[i * 4 + 3] = 255;
 
     // Rust is much rougher than bare metal; bare metal varies with grain.
-    const rough = 0.32 + g * 0.22 + rusty * 0.5;
+    // The base sits high on purpose: this armour is pitted, oiled and filthy,
+    // and a low-roughness metal renders as showroom chrome under an
+    // environment map, which is the opposite of the art direction.
+    const rough = 0.58 + g * 0.26 + rusty * 0.16;
     const v = Math.min(255, rough * 255);
     rimg.data[i * 4] = v;
     rimg.data[i * 4 + 1] = v;
@@ -177,7 +232,7 @@ export function leatherSurface(seed: number, base: number): SurfaceMaps {
   const { canvas, ctx } = makeCanvas();
   const { canvas: rc, ctx: rctx } = makeCanvas();
 
-  const c = new THREE.Color(base);
+  const c = displayColour(base);
   const grain = valueNoise(rng, SIZE, 14, 4);
   const blotch = valueNoise(new Rng(seed + 3), SIZE, 4, 3);
 
@@ -228,7 +283,7 @@ export function clothSurface(seed: number, base: number): SurfaceMaps {
   const rng = new Rng(seed);
   const { canvas, ctx } = makeCanvas();
   const { canvas: rc, ctx: rctx } = makeCanvas();
-  const c = new THREE.Color(base);
+  const c = displayColour(base);
   const dirt = valueNoise(rng, SIZE, 3, 3);
 
   const img = ctx.createImageData(SIZE, SIZE);
@@ -268,7 +323,7 @@ export function woodSurface(seed: number, base: number): SurfaceMaps {
   const rng = new Rng(seed);
   const { canvas, ctx } = makeCanvas();
   const { canvas: rc, ctx: rctx } = makeCanvas();
-  const c = new THREE.Color(base);
+  const c = displayColour(base);
   const warp = valueNoise(rng, SIZE, 3, 3);
   const damp = valueNoise(new Rng(seed + 11), SIZE, 2, 2);
 
@@ -317,7 +372,7 @@ export function stoneSurface(seed: number, base: number, mossAmount = 0.25): Sur
   const rng = new Rng(seed);
   const { canvas, ctx } = makeCanvas();
   const { canvas: rc, ctx: rctx } = makeCanvas();
-  const c = new THREE.Color(base);
+  const c = displayColour(base);
   const grain = valueNoise(rng, SIZE, 8, 4);
   const damp = valueNoise(new Rng(seed + 5), SIZE, 3, 3);
 
@@ -373,7 +428,26 @@ export function stoneSurface(seed: number, base: number, mossAmount = 0.25): Sur
 
   rctx.fillStyle = rgb(216, 216, 216);
   rctx.fillRect(0, 0, SIZE, SIZE);
-  return { map: toTexture(canvas), roughnessMap: toDataTexture(rc) };
+
+  // Relief from the grain, plus a deep groove wherever a mortar joint runs.
+  const height = new Float32Array(SIZE * SIZE);
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const i = y * SIZE + x;
+      let h = grain[i]! * 0.8;
+      const row = Math.floor(y / blockH);
+      const offset = (row % 2) * (blockH * 1.2);
+      const nearCourse = (y % blockH) < 2;
+      const nearJoint = Math.abs(((x - offset) % (blockH * 2.4)) ) < 2;
+      if (nearCourse || nearJoint) h -= 0.55;
+      height[i] = h;
+    }
+  }
+  return {
+    map: toTexture(canvas),
+    roughnessMap: toDataTexture(rc),
+    normalMap: normalFromHeight(height, SIZE, 3.0),
+  };
 }
 
 /** Earth: mud, gravel, patchy dead vegetation. Used for outdoor ground. */
@@ -381,9 +455,12 @@ export function groundSurface(seed: number, base: number, vegetation = 0.2): Sur
   const rng = new Rng(seed);
   const { canvas, ctx } = makeCanvas();
   const { canvas: rc, ctx: rctx } = makeCanvas();
-  const c = new THREE.Color(base);
+  const c = displayColour(base);
   const coarse = valueNoise(rng, SIZE, 4, 4);
   const fine = valueNoise(new Rng(seed + 2), SIZE, 20, 2);
+  // Height for the relief map: broad undulation plus fine grit.
+  const height = new Float32Array(SIZE * SIZE);
+  for (let i = 0; i < height.length; i++) height[i] = coarse[i]! * 0.7 + fine[i]! * 0.45;
 
   const img = ctx.createImageData(SIZE, SIZE);
   for (let i = 0; i < SIZE * SIZE; i++) {
@@ -401,32 +478,53 @@ export function groundSurface(seed: number, base: number, vegetation = 0.2): Sur
   }
   ctx.putImageData(img, 0, 0);
 
-  // Scattered gravel.
+  // Scattered gravel. Each stone is drawn nine times, once per neighbouring
+  // wrap, so a stone that crosses an edge reappears on the opposite one: the
+  // ground tiles every few metres and a clipped stone becomes a dead-straight
+  // seam running the length of the zone.
   for (let i = 0; i < 420; i++) {
     const x = rng.range(0, SIZE);
     const y = rng.range(0, SIZE);
+    const r = rng.range(0.7, 2.8);
     const dark = rng.chance(0.5);
     ctx.fillStyle = dark
       ? `rgba(${rng.int(24, 54)},${rng.int(22, 48)},${rng.int(18, 40)},0.75)`
       : `rgba(${rng.int(96, 148)},${rng.int(88, 134)},${rng.int(74, 114)},0.6)`;
-    ctx.beginPath();
-    ctx.arc(x, y, rng.range(0.7, 2.8), 0, Math.PI * 2);
-    ctx.fill();
+    for (const ox of [-SIZE, 0, SIZE]) {
+      for (const oy of [-SIZE, 0, SIZE]) {
+        ctx.beginPath();
+        ctx.arc(x + ox, y + oy, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
   }
   // Cart ruts and drag marks: long, faint, and they give the ground direction.
-  for (let i = 0; i < 10; i++) {
+  // Both ends sit at the same height so the rut continues across the wrap.
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 7; i++) {
+    // Alternate the axis. All ruts on one axis turn into parallel banding once
+    // the texture repeats across a whole zone.
+    const across = i % 2 === 1;
     const y = rng.range(0, SIZE);
-    ctx.strokeStyle = `rgba(30,26,20,${rng.range(0.1, 0.26)})`;
-    ctx.lineWidth = rng.range(2, 7);
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    for (let x = 0; x <= SIZE; x += 32) ctx.lineTo(x, y + rng.range(-5, 5));
-    ctx.stroke();
+    ctx.strokeStyle = `rgba(30,26,20,${rng.range(0.05, 0.13)})`;
+    ctx.lineWidth = rng.range(2, 6);
+    for (const oy of [-SIZE, 0, SIZE]) {
+      ctx.beginPath();
+      const at = (a: number, b: number) => (across ? ctx.lineTo(b, a) : ctx.lineTo(a, b));
+      if (across) ctx.moveTo(y + oy, 0); else ctx.moveTo(0, y + oy);
+      for (let x = 32; x < SIZE; x += 32) at(x, y + oy + rng.range(-5, 5));
+      at(SIZE, y + oy);
+      ctx.stroke();
+    }
   }
 
   rctx.fillStyle = rgb(240, 240, 240);
   rctx.fillRect(0, 0, SIZE, SIZE);
-  return { map: toTexture(canvas), roughnessMap: toDataTexture(rc) };
+  return {
+    map: toTexture(canvas),
+    roughnessMap: toDataTexture(rc),
+    normalMap: normalFromHeight(height, SIZE, 3.4),
+  };
 }
 
 /** Bone and old ivory, for the ossuary and the Ashen's gear. */
@@ -434,7 +532,7 @@ export function boneSurface(seed: number, base = 0xc8b98a): SurfaceMaps {
   const rng = new Rng(seed);
   const { canvas, ctx } = makeCanvas();
   const { canvas: rc, ctx: rctx } = makeCanvas();
-  const c = new THREE.Color(base);
+  const c = displayColour(base);
   const grain = valueNoise(rng, SIZE, 10, 4);
   const stain = valueNoise(new Rng(seed + 9), SIZE, 3, 3);
 
@@ -459,7 +557,7 @@ export function skinSurface(seed: number, base: number): SurfaceMaps {
   const rng = new Rng(seed);
   const { canvas, ctx } = makeCanvas(128);
   const { canvas: rc, ctx: rctx } = makeCanvas(128);
-  const c = new THREE.Color(base);
+  const c = displayColour(base);
   const grain = valueNoise(rng, 128, 12, 3);
   const dirt = valueNoise(new Rng(seed + 4), 128, 3, 2);
 
@@ -489,6 +587,55 @@ export function skinSurface(seed: number, base: number): SurfaceMaps {
   rctx.fillStyle = rgb(180, 180, 180);
   rctx.fillRect(0, 0, 128, 128);
   return { map: toTexture(canvas), roughnessMap: toDataTexture(rc) };
+}
+
+/**
+ * A procedural environment map.
+ *
+ * This is the single most important material fix in the renderer. Physically
+ * based metals are lit almost entirely by what they reflect, so with no
+ * environment they render as near-black with a hard specular dot — which reads
+ * as polished plastic, exactly what the art direction forbids. Giving the
+ * scene even a crude sky/ground gradient to reflect makes iron look like iron.
+ *
+ * Painted as an equirectangular strip: a cold sky above, a warm bounce from the
+ * ground below, and a brighter band at the horizon where a real overcast sky is
+ * brightest.
+ */
+export function environmentTexture(
+  skyColour: number, groundColour: number, horizonWarmth = 0.35,
+): THREE.CanvasTexture {
+  const w = 256;
+  const h = 128;
+  const { canvas, ctx } = makeCanvas(w);
+  canvas.height = h;
+
+  const sky = new THREE.Color(skyColour).convertLinearToSRGB();
+  const ground = new THREE.Color(groundColour).convertLinearToSRGB();
+  const horizon = sky.clone().lerp(new THREE.Color(0xd9a066).convertLinearToSRGB(), horizonWarmth);
+
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  const hex = (c: THREE.Color) => `rgb(${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)})`;
+  grad.addColorStop(0.0, hex(sky.clone().multiplyScalar(0.55)));
+  grad.addColorStop(0.38, hex(sky));
+  grad.addColorStop(0.5, hex(horizon));
+  grad.addColorStop(0.62, hex(ground.clone().multiplyScalar(1.15)));
+  grad.addColorStop(1.0, hex(ground.clone().multiplyScalar(0.45)));
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+
+  // A soft bright patch where the key light comes from, so metal picks up a
+  // directional highlight rather than a uniform wash.
+  const glow = ctx.createRadialGradient(w * 0.28, h * 0.3, 0, w * 0.28, h * 0.3, h * 0.55);
+  glow.addColorStop(0, 'rgba(255,236,200,0.5)');
+  glow.addColorStop(1, 'rgba(255,236,200,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, w, h);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 /** A soft radial sprite, reused by every particle and glow in the game. */

@@ -25,10 +25,17 @@ interface Recipe {
   repeat: number;
 }
 
+/**
+ * Metalness is deliberately below the "physically correct" 1.0 for a bare
+ * metal. These surfaces are pitted, oxidised and filthy, and the dirt in the
+ * pits is a dielectric; a full-metal value reads as showroom chrome, which the
+ * art direction explicitly rules out. Roughness comes from the generated map,
+ * which keeps scratches smoother than the surface around them.
+ */
 const RECIPES: Record<MaterialKind, Recipe> = {
-  iron:      { surface: (s, c) => metalSurface(s, c, 0.6), metalness: 0.82, roughness: 1, repeat: 1 },
-  steel:     { surface: (s, c) => metalSurface(s, c, 0.3), metalness: 0.88, roughness: 1, repeat: 1 },
-  darksteel: { surface: (s, c) => metalSurface(s, c, 0.15), metalness: 0.92, roughness: 1, repeat: 1 },
+  iron:      { surface: (s, c) => metalSurface(s, c, 0.6), metalness: 0.55, roughness: 1, repeat: 1 },
+  steel:     { surface: (s, c) => metalSurface(s, c, 0.3), metalness: 0.68, roughness: 1, repeat: 1 },
+  darksteel: { surface: (s, c) => metalSurface(s, c, 0.15), metalness: 0.72, roughness: 1, repeat: 1 },
   leather:   { surface: leatherSurface, metalness: 0.02, roughness: 1, repeat: 1 },
   cloth:     { surface: clothSurface, metalness: 0.0, roughness: 1, repeat: 1 },
   wood:      { surface: woodSurface, metalness: 0.0, roughness: 1, repeat: 1 },
@@ -42,10 +49,14 @@ const RECIPES: Record<MaterialKind, Recipe> = {
 const cache = new Map<string, THREE.MeshStandardMaterial>();
 
 export interface MaterialOptions {
+  /** Strength of the generated relief, where the surface provides one. */
+  normalScale?: number;
   /** Texture repeat, for large surfaces like floors and walls. */
   repeat?: number;
   emissive?: number;
   emissiveIntensity?: number;
+  /** Multiply the albedo by the mesh's vertex colours. */
+  vertexColors?: boolean;
   transparent?: boolean;
   opacity?: number;
   side?: THREE.Side;
@@ -64,7 +75,7 @@ export function material(
   const key = [
     kind, colour, seed, opts.repeat ?? 1, opts.emissive ?? 0, opts.emissiveIntensity ?? 0,
     opts.transparent ? 1 : 0, opts.opacity ?? 1, opts.side ?? 0, opts.roughness ?? -1,
-    opts.flatShading ? 1 : 0,
+    opts.flatShading ? 1 : 0, opts.normalScale ?? 1, opts.vertexColors ? 1 : 0,
   ].join('|');
 
   const existing = cache.get(key);
@@ -75,10 +86,14 @@ export function material(
   const repeat = opts.repeat ?? recipe.repeat;
   maps.map.repeat.set(repeat, repeat);
   maps.roughnessMap.repeat.set(repeat, repeat);
+  if (maps.normalMap) maps.normalMap.repeat.set(repeat, repeat);
 
+  const scale = opts.normalScale ?? 1;
   const mat = new THREE.MeshStandardMaterial({
     map: maps.map,
     roughnessMap: maps.roughnessMap,
+    normalMap: maps.normalMap ?? null,
+    normalScale: new THREE.Vector2(scale, scale),
     metalness: recipe.metalness,
     roughness: opts.roughness ?? recipe.roughness,
     emissive: new THREE.Color(opts.emissive ?? 0x000000),
@@ -87,6 +102,7 @@ export function material(
     opacity: opts.opacity ?? 1,
     side: opts.side ?? THREE.FrontSide,
     flatShading: opts.flatShading ?? false,
+    vertexColors: opts.vertexColors ?? false,
   });
   cache.set(key, mat);
   return mat;
@@ -115,6 +131,7 @@ export function disposeMaterials(): void {
   for (const mat of cache.values()) {
     mat.map?.dispose();
     mat.roughnessMap?.dispose();
+    mat.normalMap?.dispose();
     mat.dispose();
   }
   cache.clear();

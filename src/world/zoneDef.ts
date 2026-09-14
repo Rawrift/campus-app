@@ -24,7 +24,10 @@ export type PropKind =
   | 'banner' | 'ritual_mark' | 'barricade' | 'ladder'
   | 'anvil' | 'forge' | 'stall' | 'hay'
   | 'house' | 'house_burnt' | 'hut' | 'chapel'
-  | 'stairs_down' | 'bridge' | 'pit';
+  | 'stairs_down' | 'bridge' | 'pit'
+  // Ground detail. Individually trivial; collectively they are the difference
+  // between a floor and a place.
+  | 'pebble' | 'tuft' | 'twig' | 'shard';
 
 export interface Prop {
   kind: PropKind;
@@ -208,6 +211,47 @@ export function onGround(grid: NavGrid, x: number, y: number): { x: number; y: n
   return grid.worldWalkable(x, y) ? { x, y } : grid.nearestWalkable(x, y, 8);
 }
 
+/**
+ * Scatters small ground detail across every walkable tile.
+ *
+ * A large flat surface reads as a flat surface no matter how good its texture
+ * is; what breaks it up is objects standing on it and casting little shadows.
+ * These are a handful of triangles each and are merged into the static batch
+ * at load, so a few thousand of them cost one draw call.
+ *
+ * Density is deliberately uneven — clumped by a slow noise rather than
+ * uniform — because evenly-spread clutter reads as wallpaper.
+ */
+export function groundClutter(
+  grid: NavGrid, rng: Rng, interior: boolean, density = 0.55,
+): Prop[] {
+  const out: Prop[] = [];
+  const kinds: PropKind[] = interior
+    ? ['pebble', 'pebble', 'shard', 'twig']
+    : ['pebble', 'pebble', 'tuft', 'tuft', 'twig'];
+
+  for (let ty = 0; ty < grid.height; ty++) {
+    for (let tx = 0; tx < grid.width; tx++) {
+      if (!grid.walkable(tx, ty)) continue;
+      // Slow noise clumps the detail into drifts and bare patches.
+      const clump = 0.5 + 0.5 * Math.sin(tx * 0.17 + Math.cos(ty * 0.13) * 2.1);
+      const chance = density * (0.25 + clump * 1.1);
+      const count = Math.floor(chance) + (rng.chance(chance % 1) ? 1 : 0);
+      for (let i = 0; i < count; i++) {
+        out.push({
+          kind: rng.pick(kinds),
+          x: tx + rng.next(),
+          y: ty + rng.next(),
+          rotation: rng.range(0, Math.PI * 2),
+          scale: rng.range(0.35, 0.85),
+          variant: rng.int(0, 999),
+        });
+      }
+    }
+  }
+  return out;
+}
+
 /** A torch with its light, used everywhere the player needs a hot spot (§28). */
 /*
  * Light intensities are in three.js's physical units, where a point light
@@ -218,13 +262,13 @@ export function onGround(grid: NavGrid, x: number, y: number): { x: number; y: n
 export function torch(x: number, y: number, variant = 0): Prop {
   return {
     kind: 'torch', x, y, rotation: 0, scale: 1, variant,
-    light: { colour: 0xff9a44, intensity: 34, range: 13, flicker: 0.18 },
+    light: { colour: 0xff9a44, intensity: 15, range: 13, flicker: 0.18 },
   };
 }
 
 export function brazier(x: number, y: number, variant = 0): Prop {
   return {
     kind: 'brazier', x, y, rotation: 0, scale: 1, variant,
-    light: { colour: 0xffa855, intensity: 52, range: 17, flicker: 0.22 },
+    light: { colour: 0xffa855, intensity: 23, range: 17, flicker: 0.22 },
   };
 }

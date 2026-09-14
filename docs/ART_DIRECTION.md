@@ -67,6 +67,33 @@ pixels — every detail fell below a pixel and averaged to flat grey. Spreading
 each repeat over four tiles put the grain and gravel at a size the player can
 see.
 
+Both of those were real, and both were also masking something larger. Raising
+the authored albedo did not raise the *painted* one, because every generator was
+writing linear components into an sRGB canvas: `new THREE.Color(0x6e6149).r` is
+0.156 under three.js colour management, not the 0.43 the hex describes, so a
+mid-tan earth was painted at RGB 40 and measured at 39. A flat 2.6x darkening
+and a loss of saturation, applied to every surface in the game at once. The
+compensation was more light, which is precisely the mistake the lesson above
+warns about — arrived at from the other direction. Textures now convert back
+through sRGB before they are painted (`displayColour` in `textures.ts`) and the
+lighting has come down by roughly half to match.
+
+Worth stating plainly, because it cost a full pass to find: **measure the
+texture, not the intent.** The albedo above was diagnosed by drawing the
+generated canvas into a 2D context and reading its mean. Every one of these
+faults was invisible to the test suite and obvious in three numbers.
+
+### And measure the frame, not the texture
+
+The ground was also, for the whole of that first pass, *not being drawn at all*.
+Every horizontal terrain quad was wound clockwise seen from above while carrying
+an upward normal, so `side: FrontSide` culled the lot. What was on screen where
+the ground should be was the background colour, and a uniform background is
+indistinguishable from a flat untextured floor — so the fault presented as an art
+problem and absorbed a texture fix, a tiling fix and a lighting fix before
+anyone doubted the mesh existed. It was found by hiding terrain meshes one at a
+time: hiding the floor changed nothing.
+
 ---
 
 ## 4. Characters

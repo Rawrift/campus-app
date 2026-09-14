@@ -64,6 +64,25 @@ const SCENES = [
     },
   },
   {
+    name: 'portrait',
+    setup: async (page) => {
+      // A close, slow orbit on the fully-equipped character, for judging the
+      // model itself rather than the scene around it.
+      await page.evaluate(() => {
+        const g = window.__OSSUAN.game;
+        g.scene.cameraRig.settings.distance = 5.6;
+        g.scene.cameraRig.settings.pitch = 22 * (Math.PI / 180);
+        g.scene.cameraRig.settings.fov = 40;
+        const p = window.__OSSUAN.api.player().actor;
+        p.facing = Math.PI * 0.25;
+        // A bright key so the form reads; this shot is about geometry.
+        g.scene.presence.intensity = 60;
+        g.scene.presence.distance = 12;
+      });
+      await delay(1500);
+    },
+  },
+  {
     name: 'marches',
     setup: async (page) => {
       await page.evaluate(() => window.__OSSUAN.api.travelTo('marches'));

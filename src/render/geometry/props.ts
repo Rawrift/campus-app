@@ -584,8 +584,10 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
 
   // --- bells --------------------------------------------------------------
   bell: (rng, g) => {
-    const brass = material('darksteel', 0x8a7038, rng.int(0, 999), {
-      emissive: 0xc8a349, emissiveIntensity: 0.1, side: THREE.DoubleSide,
+    // Tarnished bronze, and no emissive: a bell that glows with no fire in it
+    // reads as treasure rather than as the thing the abbey rang for the dead.
+    const brass = material('darksteel', 0x6a5526, rng.int(0, 999), {
+      side: THREE.DoubleSide,
     });
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.92, 1.3, 14, 1, true), brass);
     body.position.y = 1.5;
@@ -599,7 +601,7 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
     box(g, 2.8, 0.24, 0.24, wood(rng, 0x3a2e1e), 0, 2.5);
   },
   bell_broken: (rng, g) => {
-    const brass = material('darksteel', 0x7a6432, rng.int(0, 999), { side: THREE.DoubleSide });
+    const brass = material('darksteel', 0x5e4c24, rng.int(0, 999), { side: THREE.DoubleSide });
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.92, 1.3, 14, 1, true), brass);
     body.position.y = 0.62;
     // Toppled and half-buried. The crack is on the inside (see the zone note).
@@ -664,6 +666,56 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
     bale.position.y = 0.4;
     bale.castShadow = true;
     g.add(bale);
+  },
+
+  // --- ground detail ------------------------------------------------------
+  pebble: (rng, g) => {
+    const count = rng.int(1, 3);
+    const mat = stone(rng, 0x6a6459);
+    for (let i = 0; i < count; i++) {
+      const r = rng.range(0.022, 0.055);
+      const m = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), mat);
+      m.position.set(rng.range(-0.16, 0.16), r * 0.45, rng.range(-0.16, 0.16));
+      m.rotation.set(rng.range(0, TAU), rng.range(0, TAU), rng.range(0, TAU));
+      m.scale.y = rng.range(0.45, 0.8);
+      m.castShadow = true;
+      g.add(m);
+    }
+  },
+  tuft: (rng, g) => {
+    // Dead, desaturated grass: blades of two lengths so it is not a fan.
+    const mat = material('cloth', rng.chance(0.5) ? 0x53553a : 0x4a4632, rng.int(0, 999), {
+      side: THREE.DoubleSide,
+    });
+    const blades = rng.int(4, 9);
+    for (let i = 0; i < blades; i++) {
+      const h = rng.range(0.06, 0.17);
+      const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.022, h), mat);
+      blade.position.set(rng.range(-0.07, 0.07), h * 0.48, rng.range(-0.07, 0.07));
+      blade.rotation.set(rng.range(-0.35, 0.35), rng.range(0, TAU), rng.range(-0.4, 0.4));
+      g.add(blade);
+    }
+  },
+  twig: (rng, g) => {
+    const mat = wood(rng, 0x3d3226);
+    const count = rng.int(1, 3);
+    for (let i = 0; i < count; i++) {
+      const len = rng.range(0.08, 0.20);
+      const m = cyl(g, 0.010, 0.014, len, mat,
+        rng.range(-0.12, 0.12), 0.012, rng.range(-0.12, 0.12), 5);
+      m.rotation.set(Math.PI / 2 + rng.range(-0.2, 0.2), rng.range(0, TAU), rng.range(-0.3, 0.3));
+    }
+  },
+  shard: (rng, g) => {
+    // Broken stone and bone chips — the interior equivalent of gravel.
+    const mat = rng.chance(0.4) ? bone(rng) : stone(rng, 0x5e584d);
+    for (let i = 0; i < rng.int(2, 4); i++) {
+      const m = new THREE.Mesh(new THREE.TetrahedronGeometry(rng.range(0.022, 0.048)), mat);
+      m.position.set(rng.range(-0.15, 0.15), 0.022, rng.range(-0.15, 0.15));
+      m.rotation.set(rng.range(0, TAU), rng.range(0, TAU), rng.range(0, TAU));
+      m.castShadow = true;
+      g.add(m);
+    }
   },
 
   stairs_down: (rng, g) => {
