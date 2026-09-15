@@ -73,10 +73,18 @@ game that was working fine, just slowly.
 
 ### Ambient occlusion costs a second scene render
 The GTAO pass renders the scene again into a depth/normal buffer before it can
-shade anything, on top of the pass and its denoise. That is why it is a graphics
-option rather than always on, and `npm run smoke` now measures the difference
-rather than assuming it. Software rendering exaggerates the cost, but it is a
-real cost on hardware too.
+shade anything, on top of the pass and its denoise. Running the buffers at half
+the frame size brought that from 106% of a frame to 35% with no visible
+difference, but it is still the most expensive thing in the renderer, which is
+why it is a graphics option rather than always on. `npm run smoke` measures the
+difference each run rather than assuming it. Software rendering exaggerates the
+cost, but it is a real cost on hardware too.
+
+The remaining win would be feeding the pass the main render's own depth and
+normals instead of letting it build its own — `GTAOPass.setGBuffer` supports
+exactly that — but it wants normals packed alongside depth, which `RenderPass`
+does not produce. It needs a multi-target render pass, which is a larger change
+than the effect currently justifies.
 
 ### Draw calls scale with distinct materials, not with prop count
 Static props are baked into world space and merged per material, so prop *count*

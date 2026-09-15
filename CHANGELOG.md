@@ -16,6 +16,14 @@ taste: radius 1.0 world units, scale 1.3. A stronger setting grounded things
 harder and started smearing dark halos across open ground, so it was not taken.
 It is a graphics option, defaulting on.
 
+Measured rather than assumed, and the measurement changed the design: at full
+resolution the pass **doubled** the frame, because it has to render the whole
+scene a second time into a depth/normal buffer before it can shade anything.
+Occlusion is a low-frequency signal with no edges of its own to lose, so the
+buffers now run at half the frame size and upsample — 106% down to 35%, with the
+A/B crops indistinguishable. `npm run smoke` measures the cost each run, the way
+it already measured torch shadows.
+
 ### Ash in the air
 
 Every particle in the game was *caused* by something — a blow, a torch, a spell

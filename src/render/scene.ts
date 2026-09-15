@@ -254,6 +254,16 @@ export class GameScene {
     this.gtao.blendIntensity = 1.0;
     this.gtao.enabled = this.aoEnabled;
     this.composer.addPass(this.gtao);
+    // Half resolution. The pass has to render the whole scene a second time
+    // into a depth/normal buffer before it can shade anything, and measured
+    // against the rest of the frame that second pass is the entire cost of the
+    // effect. Occlusion is a low-frequency signal -- it has no edges of its own
+    // to lose -- so a half-size buffer upsamples without anyone being able to
+    // tell, and quarters the fragment work in both the G-buffer and the shading.
+    // The denoise radius is in pixels, so it is halved to match or it blurs
+    // across twice the world distance it was tuned for.
+    this.gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4 });
+    this.setAoResolution(size.x, size.y);
 
     this.bloom = new UnrealBloomPass(size, 0.62, 0.72, 0.82);
     this.composer.addPass(this.bloom);
@@ -1104,7 +1114,8 @@ export class GameScene {
   resize(width: number, height: number): void {
     this.renderer.setSize(width, height, false);
     this.composer.setSize(width, height);
-    this.gtao.setSize(width, height);
+    // After the composer, which resizes every pass it owns to full size.
+    this.setAoResolution(width, height);
     this.cameraRig.resize(width / Math.max(1, height));
   }
 
@@ -1124,6 +1135,15 @@ export class GameScene {
   /** Toggled by the graphics option and by the automated tests. */
   setBloom(enabled: boolean): void {
     this.bloomEnabled = enabled;
+  }
+
+  /** Sizes the occlusion buffers to half the frame. See the note where the
+   * pass is built. */
+  private setAoResolution(width: number, height: number): void {
+    this.gtao.setSize(
+      Math.max(1, Math.round(width / 2)),
+      Math.max(1, Math.round(height / 2)),
+    );
   }
 
   /** Ambient occlusion: the contact darkening that makes objects sit in the
