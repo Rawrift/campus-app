@@ -1,5 +1,74 @@
 # CHANGELOG
 
+## 0.5.0 — Air, contact, and a world with things in it
+
+### Ambient occlusion
+
+Direct lighting cannot darken the crease where a barrel meets the floor, the
+inside of a doorway, or the gap under a cart, because nothing is casting a
+shadow there — the light simply never had a path in. Without that darkening
+every object reads as sitting *on top of* the scene rather than in it, and shadow
+maps do not substitute: they resolve nothing at the few centimetres where two
+surfaces meet, which is exactly the scale that says "these things are touching".
+
+A GTAO pass now runs before bloom, tuned against an A/B sweep rather than to
+taste: radius 1.0 world units, scale 1.3. A stronger setting grounded things
+harder and started smearing dark halos across open ground, so it was not taken.
+It is a graphics option, defaulting on.
+
+### Ash in the air
+
+Every particle in the game was *caused* by something — a blow, a torch, a spell
+— which left the air itself empty. Empty air is a quiet but persistent tell that
+a scene is a diorama: nothing ever crosses between the camera and the character,
+so the space between them reads as vacuum rather than as distance.
+
+Ash now drifts continuously through a volume around the player, seeded in a ring
+so motes never pop in on top of the camera, nearly weightless and heavily
+dragged so it hangs rather than falls. Density is authored per zone; the crypt
+has twice the village's. The ambient emitter has its own cap on the particle
+pool, because ash is continuous and combat is bursty — without one a still room
+fills the pool and the first blow of a fight silently drops its blood and sparks.
+
+### The ground had polka dots
+
+The gravel in the ground texture was painted at about a quarter of the ground's
+own brightness. A stone that dark is a *hole*, not a stone, and a few hundred of
+them tile into a field of dots that reads as pattern — worse than no gravel,
+because the eye locks onto the repeat. Real stones sit within a stop or so of the
+earth they lie on; what separates them is the relief map, not the albedo.
+
+### Denser zones, and scatter that keeps its distance
+
+Prop counts are up roughly 60% across all three zones, with new kinds in each
+mix. A settlement people fled reads as abandoned when the frame is full of what
+they could not carry; a handful of barrels on bare ground reads as a level that
+is not finished.
+
+Raising the counts alone made it worse, because `scatter` placed uniformly at
+random — which clumps, and two barrels 20cm apart do not read as two barrels,
+they read as one broken mesh. It now rejects a candidate that lands within a
+minimum distance of one already placed, so the density a zone asks for is bounded
+by whether the placement can keep things apart rather than by taste.
+
+Sick-tree foliage was also darkened; it was the one thing outdoors still reading
+bright enough to pull the eye off the character.
+
+### Every prop had its own material
+
+Raising the density immediately blew the draw-call budget, which turned out to
+be worth the trouble it caused. The renderer batches static props *by material*,
+and every prop builder was asking for its texture with `rng.int(0, 999)` as the
+seed. The material cache keys on that seed, so a thousand possible seeds meant a
+thousand possible materials: a zone of 800 props produced hundreds of one-prop
+batches and the merging that exists to hold the budget was collapsing nothing.
+It also made boot generate a fresh albedo, roughness and normal map for each.
+
+Four variants per material now. That is enough to break up a row of barrels at
+this camera distance; the variety that actually reads comes from per-prop
+rotation, scale and the builders' own randomised geometry, none of which costs a
+batch.
+
 ## 0.4.0 — Bodies instead of puppets
 
 The rig was the clearest thing left between this and the reference: the parts

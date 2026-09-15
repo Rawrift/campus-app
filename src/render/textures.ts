@@ -486,10 +486,16 @@ export function groundSurface(seed: number, base: number, vegetation = 0.2): Sur
     const x = rng.range(0, SIZE);
     const y = rng.range(0, SIZE);
     const r = rng.range(0.7, 2.8);
+    // Low contrast on purpose. A stone at a quarter of the ground's brightness
+    // is a *hole*, not a stone, and a few hundred of them tile into a field of
+    // polka dots that reads as pattern rather than as gravel -- which is worse
+    // than no gravel, because the eye locks onto the repeat. Real stones sit
+    // within a stop or so of the earth they are lying on; what separates them
+    // is the relief map, not the albedo.
     const dark = rng.chance(0.5);
     ctx.fillStyle = dark
-      ? `rgba(${rng.int(24, 54)},${rng.int(22, 48)},${rng.int(18, 40)},0.75)`
-      : `rgba(${rng.int(96, 148)},${rng.int(88, 134)},${rng.int(74, 114)},0.6)`;
+      ? `rgba(${rng.int(62, 96)},${rng.int(56, 86)},${rng.int(44, 68)},0.42)`
+      : `rgba(${rng.int(134, 178)},${rng.int(122, 162)},${rng.int(102, 138)},0.38)`;
     for (const ox of [-SIZE, 0, SIZE]) {
       for (const oy of [-SIZE, 0, SIZE]) {
         ctx.beginPath();

@@ -71,11 +71,18 @@ motion here. Any smoke check that waits for the simulation to reach a state must
 wait on that state, not on wall-clock — one of them did not, and failed on a
 game that was working fine, just slowly.
 
-### Draw calls scale with prop count, not with screen area
-Props are cloned per instance rather than instanced, so a dense zone costs a
-draw call per prop even when off-screen. Frustum culling helps, but the fix is
-`InstancedMesh` per (kind, variant). This is the single highest-value
-optimisation left.
+### Draw calls scale with distinct materials, not with prop count
+Static props are baked into world space and merged per material, so prop *count*
+is cheap — what costs is how many distinct materials a zone asks for. That was
+the real bug behind this entry: every builder seeded its texture with
+`rng.int(0, 999)`, the material cache keys on the seed, and a zone of 800 props
+therefore produced hundreds of one-prop batches. Four variants per material now.
+
+What remains is that a prop's geometry is still baked per instance rather than
+instanced, so a hundred identical barrels cost a hundred barrels' worth of
+vertices. `InstancedMesh` per (kind, variant) would fix it and is the highest-
+value optimisation left, but it is now a triangle-budget question rather than a
+draw-call one.
 
 ### The bundle is one 787 KB chunk
 Almost all of it is Three.js. It is not code-split, so first load fetches

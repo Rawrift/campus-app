@@ -43,7 +43,7 @@ const OUTDOOR_AMBIENCE: Ambience = {
   sunAngle: [-0.85, 2.3],
   fogColour: 0x2b2c2a, fogNear: 22, fogFar: 66,
   groundColour: 0x6e6149, wallColour: 0x6b6557,
-  interior: false, wallHeight: 1.35, ambienceTrack: 'wind',
+  interior: false, wallHeight: 1.35, ashDensity: 34, ambienceTrack: 'wind',
 };
 
 const VILLAGE_AMBIENCE: Ambience = {
@@ -52,7 +52,7 @@ const VILLAGE_AMBIENCE: Ambience = {
   sunColour: 0xa2947a, sunIntensity: 0.78,
   fogColour: 0x34332f, fogNear: 26, fogFar: 78,
   groundColour: 0x756750, wallColour: 0x736c5c,
-  wallHeight: 2.2,
+  wallHeight: 2.2, ashDensity: 26,
   ambienceTrack: 'village',
 };
 
@@ -68,7 +68,7 @@ const CRYPT_AMBIENCE: Ambience = {
   sunAngle: [-0.7, 1.6],
   fogColour: 0x0e0e12, fogNear: 11, fogFar: 38,
   groundColour: 0x635a4b, wallColour: 0x685f50,
-  interior: true, wallHeight: 3.4, ambienceTrack: 'crypt',
+  interior: true, wallHeight: 3.4, ashDensity: 48, ambienceTrack: 'crypt',
 };
 
 // ---------------------------------------------------------------------------
@@ -160,10 +160,26 @@ const HUB: ZoneDef = {
       kind: 'cart', x: 33, y: 29, rotation: 1.1, scale: 1, variant: 0,
       note: 'Loaded, roped, pointed at the gate. It has not moved in weeks.',
     });
-    props.push(...scatter(grid, rng, ['barrel', 'crate', 'sack', 'basket', 'hay'], 22,
+    /*
+     * Density.
+     *
+     * A settlement that people fled reads as abandoned when the frame is full
+     * of the things they could not carry and empty of the people; a handful of
+     * barrels on bare ground reads as a level that is not finished. The counts
+     * below are deliberately high -- the static props merge by material, so the
+     * cost is triangles rather than draw calls, and triangles are the budget
+     * this project has most of.
+     */
+    props.push(...scatter(grid, rng, ['barrel', 'crate', 'sack', 'basket', 'hay'], 34,
       { x: 28, y: 31, r: 12 }, { avoid: [{ x: 28, y: 30, r: 2.5 }] }));
-    props.push(...scatter(grid, rng, ['fence', 'fence_broken'], 10, { x: 28, y: 38, r: 9 }));
-    props.push(...scatter(grid, rng, ['tree_sick', 'stump'], 6, { x: 28, y: 42, r: 8 }));
+    props.push(...scatter(grid, rng, ['fence', 'fence_broken', 'barricade'], 17,
+      { x: 28, y: 38, r: 10 }));
+    props.push(...scatter(grid, rng, ['tree_sick', 'stump', 'bush_dead'], 11, { x: 28, y: 42, r: 9 }));
+    // The leavings of a hurried evacuation, spread wider than the market square.
+    props.push(...scatter(grid, rng, ['rubble', 'wheel', 'sack', 'basket'], 20,
+      { x: 28, y: 30, r: 19 }, { avoid: [{ x: 28, y: 30, r: 3 }] }));
+    props.push(...scatter(grid, rng, ['ladder', 'crate', 'table', 'chair'], 12,
+      { x: 22, y: 26, r: 11 }));
     return props;
   },
 
@@ -267,10 +283,10 @@ const MARCHES: ZoneDef = {
     });
     props.push({ kind: 'corpse_covered', x: 28.4, y: 57.6, rotation: 1.1, scale: 1, variant: 1 });
     props.push({ kind: 'cart_wrecked', x: 31, y: 55, rotation: 2.1, scale: 1.1, variant: 0 });
-    props.push(...scatter(grid, rng, ['rubble', 'barrel', 'crate', 'bones'], 16, { x: 26, y: 58, r: 9 }));
+    props.push(...scatter(grid, rng, ['rubble', 'barrel', 'crate', 'bones', 'wheel'], 26, { x: 26, y: 58, r: 11 }));
 
     // --- The flooded field --------------------------------------------------
-    props.push(...scatter(grid, rng, ['reeds', 'stump', 'animal_corpse'], 22, { x: 58, y: 52, r: 9 }));
+    props.push(...scatter(grid, rng, ['reeds', 'stump', 'animal_corpse', 'bush_dead'], 34, { x: 58, y: 52, r: 11 }));
     props.push({
       kind: 'animal_corpse', x: 57, y: 50, rotation: 0.4, scale: 1.3, variant: 0,
       note: 'The livestock walked into the water and stayed there.',
@@ -294,7 +310,7 @@ const MARCHES: ZoneDef = {
       { x: 60, y: 28, r: 10 }, { scaleMin: 0.9, scaleMax: 1.6 }));
 
     // --- The road and the abbey approach ------------------------------------
-    props.push(...scatter(grid, rng, ['fence_broken', 'rock', 'bush_dead'], 24, { x: 42, y: 45, r: 18 }));
+    props.push(...scatter(grid, rng, ['fence_broken', 'rock', 'bush_dead', 'rubble', 'twig'], 40, { x: 42, y: 45, r: 20 }));
     props.push({ kind: 'chapel', x: 44, y: 9, rotation: 0, scale: 1.6, variant: 0 });
     props.push({
       kind: 'bell_broken', x: 41, y: 13, rotation: 0.5, scale: 1.3, variant: 0,
@@ -462,12 +478,12 @@ const DUNGEON: ZoneDef = {
       kind: 'bench', x: 31, y: 65, rotation: 0, scale: 1.4, variant: 0,
       note: 'The pews face the wrong way. All of them. Someone turned them around.',
     });
-    props.push(...scatter(grid, rng, ['rubble', 'bones', 'candles'], 16, roomCentre(O.nave)));
+    props.push(...scatter(grid, rng, ['rubble', 'bones', 'candles', 'skull_pile'], 27, roomCentre(O.nave)));
     props.push(brazier(28, 60, 11), brazier(34, 60, 12));
 
     // --- West aisle: the ossuary proper ------------------------------------
     props.push(...lineWalls(grid, rng, ['ossuary_niche', 'skull_pile'], roomCentre(O.westAisle), 0.42));
-    props.push(...scatter(grid, rng, ['bones', 'skull_pile'], 18, roomCentre(O.westAisle)));
+    props.push(...scatter(grid, rng, ['bones', 'skull_pile', 'rubble', 'candles'], 30, roomCentre(O.westAisle)));
     props.push({
       kind: 'altar', x: 14, y: 48, rotation: 0, scale: 1.1, variant: 0,
       note: 'The bones here are sorted by size, not by person.',
@@ -481,7 +497,7 @@ const DUNGEON: ZoneDef = {
     });
     props.push({ kind: 'table', x: 54, y: 48, rotation: 0.2, scale: 1.2, variant: 1 });
     props.push({ kind: 'corpse', x: 52, y: 44, rotation: 1.4, scale: 1, variant: 0 });
-    props.push(...scatter(grid, rng, ['barrel', 'crate', 'candles', 'bones'], 14, roomCentre(O.eastAisle)));
+    props.push(...scatter(grid, rng, ['barrel', 'crate', 'candles', 'bones', 'rubble'], 24, roomCentre(O.eastAisle)));
     props.push(brazier(48, 50, 13), torch(56, 44));
 
     // --- Chapter house: the event ------------------------------------------
@@ -492,7 +508,7 @@ const DUNGEON: ZoneDef = {
     props.push({ kind: 'candles', x: 29, y: 43, rotation: 0, scale: 1, variant: 0 });
     props.push({ kind: 'candles', x: 33, y: 43, rotation: 0, scale: 1, variant: 1 });
     props.push(brazier(26, 40, 14), brazier(36, 40, 15));
-    props.push(...scatter(grid, rng, ['bones', 'rubble'], 10, roomCentre(O.chapter)));
+    props.push(...scatter(grid, rng, ['bones', 'rubble', 'candles', 'chair'], 18, roomCentre(O.chapter)));
 
     // --- Reliquary: the elite guards something worth taking ----------------
     props.push({
@@ -531,7 +547,7 @@ const DUNGEON: ZoneDef = {
     props.push({ kind: 'pillar_broken', x: 22, y: 9, rotation: 0.6, scale: 1.5, variant: 7 });
     props.push({ kind: 'pillar', x: 42, y: 9, rotation: 0, scale: 1.5, variant: 8 });
     props.push(brazier(24, 4, 19), brazier(40, 4, 20), brazier(24, 10, 21), brazier(40, 10, 22));
-    props.push(...scatter(grid, rng, ['bones', 'skull_pile', 'rubble'], 20, roomCentre(O.belfry)));
+    props.push(...scatter(grid, rng, ['bones', 'skull_pile', 'rubble'], 30, roomCentre(O.belfry)));
     return props;
   },
 

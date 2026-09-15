@@ -167,20 +167,32 @@ pulsing emissive core inside a translucent shell).
 Darkness is a mechanic, but legibility is a requirement. Both came from
 reviewing actual renders.
 
-- **Hemisphere ambient** does the base legibility work. Outdoors ~0.85–0.95;
-  the ossuary runs at 0.42, roughly half, so torchlight does the work there.
+- **Hemisphere ambient** does the base legibility work. Outdoors 0.52–0.62; the
+  ossuary runs at 0.30, roughly half, so torchlight does the work there. Those
+  numbers halved when the textures stopped being painted 2.6x too dark — the
+  light had been compensating for the albedo.
 - **A raking key light**, not an overhead one. The first build placed the sun
   near-vertical and every vertical surface rendered as a black silhouette.
 - **A dim cool fill** from the opposite side, so faces turned away from the key
   light do not go to pure black.
 - **Point lights in physical units.** Three.js contribution falls off as
   `intensity / distance²`. The first build used single-digit intensities that
-  emitted essentially nothing; torches are now 34, braziers 52, the forge 60.
+  emitted essentially nothing; torches are now 15 and braziers 23, after the
+  same halving the ambient took.
 - **Per-zone wall height.** 3.4 units of stone indoors is architecture; the same
   wall around a field shadowed entire outdoor regions, so exteriors use 1.35-unit
   banks and the village a 2.2-unit palisade.
-- **ACES filmic tone mapping** at 1.12 exposure, so deep shadows do not crush to
+- **ACES filmic tone mapping** at 1.05 exposure, so deep shadows do not crush to
   pure black and torchlight can bloom.
+- **Ambient occlusion**, because none of the above can darken a crease. No light
+  ever reaches the joint between a barrel and the floor, the inside of a doorway
+  or the gap under a cart, and without that darkening every object reads as
+  sitting *on top of* the scene rather than in it. Shadow maps are not a
+  substitute: they resolve nothing at the few centimetres where two surfaces
+  meet, which is exactly the scale that says two things are touching. A GTAO
+  pass runs before bloom at a 1.0-unit radius, chosen from an A/B sweep — a
+  stronger setting grounded objects harder and began smearing dark halos across
+  open ground.
 - Flicker is two out-of-phase sines, which reads far more like fire than either
   one sine or random noise.
 
@@ -200,6 +212,16 @@ Legibility first: every effect says something about gameplay.
 - **Loot beams** — height and brightness scale with rarity, and Blank items get
   no beam at all, so the screen does not become fireworks.
 - **Decals** — blood and scorch, capped at 90, fading over their last seconds.
+- **Ambient ash** — the only effect in the game not caused by an event. Every
+  other particle is a consequence of something, which leaves the air itself
+  empty, and empty air is a quiet but persistent tell that a scene is a diorama:
+  nothing ever crosses between the camera and the character, so the space
+  between them reads as vacuum rather than as distance. Ash is seeded in a ring
+  around the player (never on top of the camera, where a mote pops in as a
+  full-size smear), nearly weightless and heavily dragged so it hangs rather
+  than falls. It has its own cap on the particle pool: ash is continuous and
+  combat is bursty, and without one a still room fills the pool and the first
+  blow of a fight silently drops its blood and sparks.
 
 Everything is pooled into a single `Points` draw.
 

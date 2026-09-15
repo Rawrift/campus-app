@@ -15,6 +15,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { Rng } from '@/core/rng';
 import { clamp, damp, lerp } from '@/core/math';
 import { Tile, type GroundItem, type SimWorld } from '@/sim/world';
@@ -26,7 +27,7 @@ import { RARITY, type EquipSlot, type VisualModule, type WeaponCategory } from '
 import type { Actor } from '@/sim/entity';
 import type { PlayerController } from '@/sim/player';
 import type { LoadedZone } from '@/world/zoneRuntime';
-import type { Prop } from '@/world/zoneDef';
+import type { Ambience, Prop } from '@/world/zoneDef';
 import { CameraRig } from './camera';
 import { buildTerrain, type TerrainResult } from './terrain';
 import { environmentTexture } from './textures';
@@ -147,7 +148,12 @@ export class GameScene {
    */
   private composer: EffectComposer;
   private bloom: UnrealBloomPass;
+  /** Exposed so the tuning tool can sweep its parameters against a live scene. */
+  readonly gtao: GTAOPass;
   bloomEnabled = true;
+  private aoEnabled = true;
+  private ambience: Ambience | null = null;
+  private ashTint: [number, number, number] = [0.5, 0.48, 0.45];
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -223,6 +229,32 @@ export class GameScene {
     );
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.cameraRig.camera));
+
+    /*
+     * Ground contact.
+     *
+     * Direct lighting alone cannot darken the crease where a barrel meets the
+     * floor, the inside of a doorway, or the gap under a cart, because nothing
+     * is casting a shadow there -- the light simply never had a path in. Without
+     * that darkening every object reads as *sitting on top of* the scene rather
+     * than in it, which is most of what separates a lit 3D scene from a place.
+     * Shadow maps do not substitute for it: they resolve nothing at the few
+     * centimetres where two surfaces meet, which is exactly the scale that says
+     * "these things are touching".
+     *
+     * The radius is in world units and the world is metric-ish, so 0.55 covers
+     * the crease around a prop without smearing across a whole room. `thickness`
+     * keeps a thin object from occluding what is well behind it.
+     */
+    this.gtao = new GTAOPass(this.scene, this.cameraRig.camera, size.x, size.y);
+    this.gtao.updateGtaoMaterial({
+      radius: 1.0, distanceExponent: 1.4, thickness: 0.6,
+      scale: 1.3, samples: 12, screenSpaceRadius: false,
+    });
+    this.gtao.blendIntensity = 1.0;
+    this.gtao.enabled = this.aoEnabled;
+    this.composer.addPass(this.gtao);
+
     this.bloom = new UnrealBloomPass(size, 0.62, 0.72, 0.82);
     this.composer.addPass(this.bloom);
     // OutputPass applies tone mapping and the colour-space conversion at the
@@ -252,6 +284,21 @@ export class GameScene {
     this.clearZone();
     const { grid, props, def } = loaded;
     const amb = def.ambience;
+    this.ambience = amb;
+    /*
+     * Ash takes a warm cast from the zone's ambient rather than the ambient
+     * itself. The ambient colours are stored as hex and read back linear, so
+     * the crypt's slate blue comes out around 0.05 -- additive at that value
+     * over a torch-lit floor is literally nothing. These are the particles the
+     * player is meant to notice as movement in the air, so they are authored to
+     * be seen and kept small instead of authored dim and lost.
+     */
+    const ash = new THREE.Color(amb.ambientColour);
+    this.ashTint = [
+      0.34 + ash.r * 0.5,
+      0.31 + ash.g * 0.5,
+      0.27 + ash.b * 0.5,
+    ];
 
     this.terrain = buildTerrain(grid, amb, 1234);
     this.zoneGroup.add(this.terrain.group);
@@ -699,6 +746,11 @@ export class GameScene {
     this.presence.position.set(px + this.sunDir.x * 1.6, 3.4, pz + this.sunDir.z * 1.6);
 
     this.updateShadowLamps(px, pz);
+    // Ash is seeded around the player rather than around the camera target, so
+    // it keeps up when the camera is still and the character is moving.
+    if (this.ambience) {
+      this.vfx.ambientAsh(px, pz, this.ambience.ashDensity, dt, this.ashTint);
+    }
     this.vfx.update(dt);
     this.updateOcclusion(px, pz);
   }
@@ -1030,6 +1082,7 @@ export class GameScene {
   resize(width: number, height: number): void {
     this.renderer.setSize(width, height, false);
     this.composer.setSize(width, height);
+    this.gtao.setSize(width, height);
     this.cameraRig.resize(width / Math.max(1, height));
   }
 
@@ -1049,6 +1102,17 @@ export class GameScene {
   /** Toggled by the graphics option and by the automated tests. */
   setBloom(enabled: boolean): void {
     this.bloomEnabled = enabled;
+  }
+
+  /** Ambient occlusion: the contact darkening that makes objects sit in the
+   * world rather than on it. Costly enough to be worth a switch. */
+  setAmbientOcclusion(enabled: boolean): void {
+    this.aoEnabled = enabled;
+    this.gtao.enabled = enabled;
+  }
+
+  get ambientOcclusion(): boolean {
+    return this.aoEnabled;
   }
 
   /** Renderer statistics for the debug overlay (§55). */

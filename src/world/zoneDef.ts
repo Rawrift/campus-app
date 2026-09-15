@@ -106,6 +106,15 @@ export interface Ambience {
    * so the exterior regions use low banks and hedgerows instead.
    */
   readonly wallHeight: number;
+  /**
+   * Airborne ash drifting through the volume, in motes per second.
+   *
+   * Every other particle in the game is caused by something, which leaves the
+   * air itself empty -- and empty air reads as a diorama, because nothing ever
+   * crosses between the camera and the character. This is the only thing in
+   * the scene that occupies the space rather than sitting in it.
+   */
+  readonly ashDensity: number;
   /** Drives the procedural ambient audio bed (§31). */
   readonly ambienceTrack: 'wind' | 'crypt' | 'village';
 }
@@ -129,12 +138,30 @@ export interface ZoneDef {
 }
 
 /** Scatters props on walkable tiles, avoiding the given exclusion points. */
+/**
+ * Scatters props over a disc.
+ *
+ * `spacing` is the important parameter and it is on by default. Uniform random
+ * placement clumps -- that is what uniform random *does* -- and two barrels
+ * dropped 20cm apart do not read as two barrels, they read as one broken mesh.
+ * The denser the scatter the worse it gets, so the density a zone wants is
+ * bounded by whether the placement keeps things apart. Rejecting a candidate
+ * that lands too close to one already placed is the cheapest fix that works;
+ * the guard bounds the retries so an over-subscribed area simply ends up with
+ * fewer props rather than hanging.
+ */
 export function scatter(
   grid: NavGrid, rng: Rng, kinds: PropKind[], count: number,
   area: { x: number; y: number; r: number },
-  opts: { scaleMin?: number; scaleMax?: number; avoid?: { x: number; y: number; r: number }[] } = {},
+  opts: {
+    scaleMin?: number; scaleMax?: number;
+    avoid?: { x: number; y: number; r: number }[];
+    spacing?: number;
+  } = {},
 ): Prop[] {
   const out: Prop[] = [];
+  const spacing = opts.spacing ?? 1.15;
+  const spacing2 = spacing * spacing;
   let guard = 0;
   while (out.length < count && guard++ < count * 40) {
     const a = rng.range(0, Math.PI * 2);
@@ -143,6 +170,7 @@ export function scatter(
     const y = area.y + Math.sin(a) * d;
     if (!grid.worldWalkable(x, y)) continue;
     if (opts.avoid?.some((z) => (x - z.x) ** 2 + (y - z.y) ** 2 < z.r * z.r)) continue;
+    if (spacing > 0 && out.some((p) => (x - p.x) ** 2 + (y - p.y) ** 2 < spacing2)) continue;
     out.push({
       kind: rng.pick(kinds),
       x, y,

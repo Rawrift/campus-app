@@ -92,6 +92,7 @@ export class Game {
     this.hud.onSettingChanged = (key, value) => {
       if (key === 'torchShadows') this.scene.setTorchShadows(value);
       if (key === 'bloom') this.scene.setBloom(value);
+      if (key === 'ambientOcclusion') this.scene.setAmbientOcclusion(value);
     };
 
     this.wireEvents();
@@ -790,6 +791,7 @@ export class Game {
       toggleDebug: () => this.hud.setDebug(this.hud.debugVisible ? null : ''),
       setTorchShadows: (on: boolean) => this.scene.setTorchShadows(on),
       setBloom: (on: boolean) => this.scene.setBloom(on),
+      setAmbientOcclusion: (on: boolean) => this.scene.setAmbientOcclusion(on),
     };
   }
 

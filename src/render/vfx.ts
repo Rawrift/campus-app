@@ -15,7 +15,17 @@ import { Rng } from '@/core/rng';
 import { clamp } from '@/core/math';
 import { radialSprite, splatSprite } from './textures';
 
-const MAX_PARTICLES = 900;
+const MAX_PARTICLES = 1200;
+
+/**
+ * How much of the pool the ambient emitter may hold at once.
+ *
+ * Ash is continuous and combat is bursty, so without a cap a still room fills
+ * the pool and the first blow of a fight silently drops its blood and sparks.
+ * The reserve is the other way round from how it reads: this is the ceiling on
+ * the *ambient* share, leaving the rest always available to events.
+ */
+const MAX_AMBIENT = 320;
 const MAX_DECALS = 90;
 
 interface Particle {
@@ -30,6 +40,8 @@ interface Particle {
   endR: number; endG: number; endB: number;
   gravity: number;
   drag: number;
+  /** Seeded by the ambient emitter, which is capped separately. */
+  ambient: boolean;
 }
 
 export type BurstKind =
@@ -65,6 +77,9 @@ const BURSTS: Record<BurstKind, {
 export class VfxSystem {
   readonly group = new THREE.Group();
   private particles: Particle[] = [];
+  /** Fractional carry for the ambient emitter, so a low rate still emits. */
+  private ashDebt = 0;
+  private ambientLive = 0;
   private points: THREE.Points;
   private positions: Float32Array;
   private colours: Float32Array;
@@ -84,7 +99,7 @@ export class VfxSystem {
 
     for (let i = 0; i < MAX_PARTICLES; i++) {
       this.particles.push({
-        active: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0,
+        active: false, ambient: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0,
         life: 0, maxLife: 1, size: 0.1, endSize: 0.01,
         r: 1, g: 1, b: 1, endR: 1, endG: 1, endB: 1, gravity: 0, drag: 0.9,
       });
@@ -182,6 +197,64 @@ export class VfxSystem {
     }
   }
 
+  /**
+   * Airborne ash, seeded continuously in a volume around the camera.
+   *
+   * Every particle in the game so far is *caused* by something -- a blow, a
+   * torch, a spell. That leaves the air itself empty, and empty air is one of
+   * the quietest but most persistent tells that a scene is a diorama: nothing
+   * crosses in front of anything, so the space between the camera and the
+   * character reads as vacuum rather than as distance. A slow drift of ash
+   * gives the volume something in it, and in a place that burned and is named
+   * for a bell rung over the dead it is on-theme rather than decorative.
+   *
+   * Seeded in a ring rather than a disc: motes spawned right on top of the
+   * camera pop in as full-size smears, which is worse than no dust at all.
+   *
+   * @param density motes per second; zone-authored, 0 disables
+   */
+  ambientAsh(
+    cx: number, cz: number, density: number, dt: number,
+    tint: [number, number, number],
+  ): void {
+    if (density <= 0) return;
+    this.ashDebt += density * dt;
+    while (this.ashDebt >= 1) {
+      this.ashDebt -= 1;
+      if (this.ambientLive >= MAX_AMBIENT) { this.ashDebt = 0; return; }
+      const p = this.particles.find((q) => !q.active);
+      if (!p) { this.ashDebt = 0; return; }
+      p.ambient = true;
+      this.ambientLive++;
+
+      const a = this.rng.range(0, Math.PI * 2);
+      const r = this.rng.range(3.5, 13);
+      p.active = true;
+      p.x = cx + Math.cos(a) * r;
+      p.z = cz + Math.sin(a) * r;
+      // Spawned high and drifting down, so a mote's whole life is spent in the
+      // part of the volume the camera actually looks through.
+      p.y = this.rng.range(1.2, 4.4);
+      p.vx = this.rng.range(-0.22, 0.22);
+      p.vy = this.rng.range(-0.30, -0.08);
+      p.vz = this.rng.range(-0.22, 0.22);
+      p.maxLife = this.rng.range(3.5, 7.5);
+      p.life = p.maxLife;
+      // Sized to land at two or three pixels at the game's camera distance.
+      // A physically honest mote is smaller than that and simply disappears,
+      // which is the same as not having any.
+      p.size = this.rng.range(0.055, 0.115);
+      p.endSize = 0.5;
+      [p.r, p.g, p.b] = tint;
+      p.endR = tint[0] * 0.25;
+      p.endG = tint[1] * 0.25;
+      p.endB = tint[2] * 0.25;
+      // Nearly weightless and heavily dragged: ash hangs, it does not fall.
+      p.gravity = -0.04;
+      p.drag = 0.995;
+    }
+  }
+
   /** A thin continuous emission, used for torches and burning ground. */
   emit(kind: BurstKind, x: number, y: number, z: number, rate: number, dt: number): void {
     if (this.rng.next() > rate * dt) return;
@@ -273,7 +346,11 @@ export class VfxSystem {
     for (const p of this.particles) {
       if (!p.active) continue;
       p.life -= dt;
-      if (p.life <= 0) { p.active = false; continue; }
+      if (p.life <= 0) {
+        p.active = false;
+        if (p.ambient) { p.ambient = false; this.ambientLive--; }
+        continue;
+      }
 
       p.vy += p.gravity * dt;
       const drag = Math.pow(p.drag, dt * 60);
@@ -348,7 +425,9 @@ export class VfxSystem {
   }
 
   clear(): void {
-    for (const p of this.particles) p.active = false;
+    for (const p of this.particles) { p.active = false; p.ambient = false; }
+    this.ambientLive = 0;
+    this.ashDebt = 0;
     for (const d of this.decals) this.group.remove(d.mesh);
     this.decals.length = 0;
     for (const t of this.telegraphs) {
