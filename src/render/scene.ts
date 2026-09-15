@@ -348,7 +348,21 @@ export class GameScene {
     // per sub-mesh, per prop) their geometries are baked into world space and
     // merged per material. A zone with 800 props drops from roughly 1600 draw
     // calls to one per distinct material.
-    const batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
+    /*
+     * Batched by material *and* by whether the geometry casts a shadow.
+     *
+     * A prop builder decides that per mesh -- a barrel casts, a pebble does not
+     * -- but merging threw the flag away and set `castShadow` on every batch,
+     * so every scrap of ground clutter was redrawn into the shadow map each
+     * frame for a shadow measured in fractions of a pixel. Clutter is by far
+     * the most numerous thing in a zone, so that was most of the shadow pass.
+     * Keying the batch on the flag keeps the merge and honours the decision.
+     */
+    const batches = new Map<string, {
+      material: THREE.Material;
+      castShadow: boolean;
+      geometries: THREE.BufferGeometry[];
+    }>();
     const matrix = new THREE.Matrix4();
     const propMatrix = new THREE.Matrix4();
 
@@ -391,19 +405,27 @@ export class GameScene {
         }
         if (!geo.attributes.normal) geo.computeVertexNormals();
 
-        let list = batches.get(mat);
-        if (!list) { list = []; batches.set(mat, list); }
-        list.push(geo);
+        const key = `${mat.uuid}|${node.castShadow ? 1 : 0}`;
+        let batch = batches.get(key);
+        if (!batch) {
+          batch = { material: mat, castShadow: node.castShadow, geometries: [] };
+          batches.set(key, batch);
+        }
+        batch.geometries.push(geo);
       });
 
     }
 
-    // Flush the batches into one mesh per material.
-    for (const [mat, geometries] of batches) {
+    // Flush the batches into one mesh per (material, shadow) pair.
+    for (const { material: mat, castShadow, geometries } of batches.values()) {
       if (geometries.length === 0) continue;
       const merged = geometries.length === 1
         ? geometries[0]!
         : mergeGeometries(geometries, false);
+      // One material means one draw group. Primitives carry their own -- a box
+      // has six, one per face -- and merging preserves them, so a batch of
+      // crates was issuing six draw calls where one would do.
+      merged?.clearGroups();
       if (!merged) {
         // Never silently drop scenery: fall back to unmerged meshes so a
         // geometry mismatch shows up as a performance issue, not a missing prop.
@@ -412,7 +434,7 @@ export class GameScene {
         continue;
       }
       const mesh = new THREE.Mesh(merged, mat);
-      mesh.castShadow = true;
+      mesh.castShadow = castShadow;
       mesh.receiveShadow = true;
       this.zoneGroup.add(mesh);
       if (geometries.length > 1) for (const geo of geometries) geo.dispose();

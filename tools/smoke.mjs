@@ -534,16 +534,28 @@ async function main() {
         frames.sort((a, b) => a - b);
         return frames[Math.floor(frames.length / 2)];
       };
-      window.__OSSUAN.api.setTorchShadows(false);
+      const api = window.__OSSUAN.api;
+      api.setTorchShadows(false);
       const off = await measure();
-      window.__OSSUAN.api.setTorchShadows(true);
+      api.setTorchShadows(true);
       const on = await measure();
-      window.__OSSUAN.api.setTorchShadows(false);
-      return { off, on };
+      api.setTorchShadows(false);
+
+      // Ambient occlusion costs a whole extra scene render for its normal
+      // buffer, on top of the pass itself, so it is worth measuring rather than
+      // assuming. It is a graphics option for exactly this reason.
+      api.setAmbientOcclusion(false);
+      const aoOff = await measure();
+      api.setAmbientOcclusion(true);
+      const aoOn = await measure();
+      return { off, on, aoOff, aoOn };
     });
     console.log(`    torch shadows: ${shadowCost.off.toFixed(0)}ms off · ${shadowCost.on.toFixed(0)}ms on`);
+    console.log(`    ambient occlusion: ${shadowCost.aoOff.toFixed(0)}ms off · ${shadowCost.aoOn.toFixed(0)}ms on`);
     check('torch shadows can be turned off', shadowCost.off > 0 && shadowCost.on > 0,
       `${((shadowCost.on / shadowCost.off - 1) * 100).toFixed(0)}% cost on software rendering`);
+    check('ambient occlusion can be turned off', shadowCost.aoOff > 0 && shadowCost.aoOn > 0,
+      `${((shadowCost.aoOn / shadowCost.aoOff - 1) * 100).toFixed(0)}% cost on software rendering`);
     check('the renderer stays within a sane draw-call budget under load',
       perf.calls < 900, `${perf.calls} draw calls with ${perf.actors} actors`);
     await shot('13-stress');

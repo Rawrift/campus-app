@@ -36,6 +36,16 @@ type Builder = (rng: Rng, g: THREE.Group) => void;
  */
 const TEXTURE_VARIANTS = 4;
 
+/*
+ * Ground clutter does not cast shadows.
+ *
+ * A pebble is a couple of centimetres across, so its shadow is sub-pixel at
+ * this camera -- but clutter is by far the most numerous thing in a zone, and
+ * every shadow-casting mesh is redrawn into the shadow map each frame. It was
+ * paying a full second render pass for geometry whose shadow nobody can
+ * resolve. Anything a player could stand behind still casts.
+ */
+
 const stone = (rng: Rng, tint = 0x6a665e) => material('stone', tint, rng.int(0, TEXTURE_VARIANTS - 1));
 const wood = (rng: Rng, tint = 0x55432c) => material('wood', tint, rng.int(0, TEXTURE_VARIANTS - 1));
 const iron = (rng: Rng, tint = 0x5a554d) => material('iron', tint, rng.int(0, TEXTURE_VARIANTS - 1));
@@ -695,7 +705,6 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
       m.position.set(rng.range(-0.16, 0.16), r * 0.45, rng.range(-0.16, 0.16));
       m.rotation.set(rng.range(0, TAU), rng.range(0, TAU), rng.range(0, TAU));
       m.scale.y = rng.range(0.45, 0.8);
-      m.castShadow = true;
       g.add(m);
     }
   },
@@ -730,7 +739,6 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
       const m = new THREE.Mesh(new THREE.TetrahedronGeometry(rng.range(0.022, 0.048)), mat);
       m.position.set(rng.range(-0.15, 0.15), 0.022, rng.range(-0.15, 0.15));
       m.rotation.set(rng.range(0, TAU), rng.range(0, TAU), rng.range(0, TAU));
-      m.castShadow = true;
       g.add(m);
     }
   },

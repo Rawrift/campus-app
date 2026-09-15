@@ -72,6 +72,29 @@ function distanceToSegment(
 }
 
 /**
+ * Drops the draw groups from every single-material mesh under `root`.
+ *
+ * Three.js primitives carry material groups so a box can take a different
+ * material per face: `BoxGeometry` ships six, `CylinderGeometry` three. The
+ * renderer issues one draw call per group *even when every group points at the
+ * same material*, and merging preserves them -- so a rig assembled from boxes
+ * and cylinders was paying six draw calls per part, and the merging that exists
+ * to cut draw calls was cutting objects only. With one material there is
+ * nothing for the groups to select between, so clearing them is exactly
+ * equivalent and collapses the calls.
+ *
+ * Meshes with a material *array* are left alone: there the groups are the
+ * mapping.
+ */
+export function collapseDrawGroups(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    if (Array.isArray(o.material)) return;
+    if (o.geometry.groups.length > 0) o.geometry.clearGroups();
+  });
+}
+
+/**
  * Collects body parts, then binds them all into one skinned mesh.
  *
  * Parts are submitted in the same place and order the rigid version built them,
@@ -178,6 +201,10 @@ export class SkinBinder {
     for (const [mat, geos] of byMaterial) {
       const one = geos.length === 1 ? geos[0]! : mergeGeometries(geos, false);
       if (!one) continue;
+      // Any groups inherited from a primitive would be concatenated with the
+      // ones the grouped merge below is about to create, mapping parts of the
+      // body to the wrong material. One material per input, so no groups.
+      one.clearGroups();
       if (geos.length > 1) for (const g of geos) g.dispose();
       baked.push(one);
       materials.push(mat);

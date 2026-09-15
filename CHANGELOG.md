@@ -54,6 +54,21 @@ by whether the placement can keep things apart rather than by taste.
 Sick-tree foliage was also darkened; it was the one thing outdoors still reading
 bright enough to pull the eye off the character.
 
+### Every box cost six draw calls
+
+Chasing the density regression turned up something that had been quietly true
+for the whole project. Three.js primitives carry material groups so a box can
+take a different material per face — `BoxGeometry` ships six, `CylinderGeometry`
+three — and the renderer issues one draw call *per group*, even when every group
+points at the same material. Merging preserves them. So a rig assembled from
+boxes and cylinders was paying six draw calls per merged part, and the merging
+that exists to cut draw calls was cutting objects only.
+
+With one material there is nothing for the groups to select between, so
+clearing them is exactly equivalent. Both rigs and the static prop batches now
+do. A villager went from 41 draw groups to 11; with 24 of them on screen the
+scene's total fell from 1234 to 454.
+
 ### Every prop had its own material
 
 Raising the density immediately blew the draw-call budget, which turned out to

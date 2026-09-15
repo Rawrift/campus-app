@@ -18,7 +18,7 @@ import { material, emissive } from '../materials';
 import { loft, shell, type Section } from './loft';
 import type { EnemyVisual } from '@/sim/enemyDef';
 import type { AnimState } from './character';
-import { SkinBinder, type BoneSpan } from './skin';
+import { SkinBinder, collapseDrawGroups, type BoneSpan } from './skin';
 
 export class EnemyRig {
   readonly root = new THREE.Group();
@@ -64,6 +64,7 @@ export class EnemyRig {
     this.build(rng);
     this.bindSkin();
     this.mergeStatic();
+    collapseDrawGroups(this.root);
   }
 
   /**
@@ -122,7 +123,10 @@ export class EnemyRig {
 
       for (const [mat, meshes] of batches) {
         if (meshes.length < 2) {
-          if (meshes[0]) merged.push(meshes[0]);
+          // A lone mesh skips the merge, so it keeps whatever draw groups its
+          // primitive shipped with -- and that is the common case. Clear them
+          // here too, or the whole fix below applies to nothing.
+          if (meshes[0]) { meshes[0].geometry.clearGroups(); merged.push(meshes[0]); }
           continue;
         }
         const geometries = meshes.map((m) => {
@@ -139,6 +143,19 @@ export class EnemyRig {
         });
 
         const combined = mergeGeometries(geometries, false);
+        /*
+         * Clear the inherited draw groups.
+         *
+         * `BoxGeometry` ships with six material groups, one per face, and
+         * `CylinderGeometry` with three -- they exist so a box can take a
+         * different material per side. Merging preserves them, and three.js
+         * issues one draw call per group even when every group points at the
+         * same material. So a rig assembled from boxes and cylinders was
+         * costing six draw calls per merged part instead of one, and the merge
+         * that exists to cut draw calls was cutting objects only. One material
+         * means one group.
+         */
+        if (combined) combined.clearGroups();
         if (!combined) {
           // Keep the originals rather than losing body parts.
           for (const m of meshes) merged.push(m);
@@ -207,7 +224,21 @@ export class EnemyRig {
 
   private build(rng: Rng): void {
     const v = this.visual;
-    const seed = rng.int(0, 99999);
+    /*
+     * A small seed space on purpose.
+     *
+     * The material cache keys on this seed, so a wide range means every
+     * individual enemy asks for its own albedo, roughness and normal maps --
+     * three 256px canvases generated at spawn, per material, per enemy, never
+     * shared with the identical enemy standing next to it. A pack of twelve was
+     * generating well over a hundred textures to render twelve creatures that
+     * are meant to look like a pack.
+     *
+     * Four variants keeps a row of them from looking stamped while letting the
+     * cache do its job. What separates one from another at this distance is the
+     * rig's own randomised proportions and phase offset, not its texture noise.
+     */
+    const seed = rng.int(0, 3);
     const primary = material('cloth', v.primary, seed, { roughness: 0.95 });
     const secondary = material('leather', v.secondary, seed + 1);
     const skin = material('skin', v.primary, seed + 2);

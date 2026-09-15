@@ -20,7 +20,7 @@ import { Rng } from '@/core/rng';
 import { clamp, damp, lerp, TAU } from '@/core/math';
 import { material } from '../materials';
 import { loft, shell, type Section } from './loft';
-import { SkinBinder, type BoneSpan } from './skin';
+import { SkinBinder, collapseDrawGroups, type BoneSpan } from './skin';
 import {
   buildBelt, buildBoot, buildCloak, buildGlove, buildHelmet,
   buildLegPiece, buildShoulder, buildTorso, buildWeapon,
@@ -306,6 +306,7 @@ export class CharacterRig {
 
     const skinned = binder.build();
     if (skinned) this.bodyParts.push(skinned);
+    collapseDrawGroups(this.root);
   }
 
   // --- equipment ---------------------------------------------------------
@@ -415,6 +416,10 @@ export class CharacterRig {
       }
     }
     this.attached.set(module, added);
+    // Armour arrives after construction, so the rig-wide sweep in the
+    // constructor never sees it. A helmet built from boxes costs six draw calls
+    // a face without this.
+    for (const node of added) collapseDrawGroups(node);
   }
 
   /** Tints every body mesh, used for the damage flash and elite auras (§8). */

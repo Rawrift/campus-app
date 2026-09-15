@@ -71,6 +71,13 @@ motion here. Any smoke check that waits for the simulation to reach a state must
 wait on that state, not on wall-clock — one of them did not, and failed on a
 game that was working fine, just slowly.
 
+### Ambient occlusion costs a second scene render
+The GTAO pass renders the scene again into a depth/normal buffer before it can
+shade anything, on top of the pass and its denoise. That is why it is a graphics
+option rather than always on, and `npm run smoke` now measures the difference
+rather than assuming it. Software rendering exaggerates the cost, but it is a
+real cost on hardware too.
+
 ### Draw calls scale with distinct materials, not with prop count
 Static props are baked into world space and merged per material, so prop *count*
 is cheap — what costs is how many distinct materials a zone asks for. That was
