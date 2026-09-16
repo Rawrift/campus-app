@@ -195,6 +195,19 @@ reviewing actual renders.
   open ground.
 - Flicker is two out-of-phase sines, which reads far more like fire than either
   one sine or random noise.
+- **A split-tone grade**, because lighting the scene correctly was not enough to
+  make it read. Almost everything here is lit by fire, so almost everything
+  lands in the same band of warm brown: a wall in shadow and a wall in
+  torchlight differ in brightness but hardly at all in hue, and the eye has
+  nothing to separate them with. Shadows are pushed cool and firelight amber, so
+  the two read as two kinds of light rather than one light at two strengths.
+  Measured on the blue-minus-red axis, the gap between a torchlit wall and a
+  shadowed floor went from 37 units to 53.
+- **Shadows are dark blue, not black.** A multiplicative tint cannot colour a
+  pitch-black pixel — there is no light in it to shift — so the grade warms the
+  highlights convincingly and does nothing to the shadows. A small ambient floor
+  of the shadow colour fixes that, kept tiny, and kept smaller in the crypt than
+  outdoors: unlit corners there are a mechanic rather than a lighting fault.
 
 ---
 

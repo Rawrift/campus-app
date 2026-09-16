@@ -44,6 +44,7 @@ const OUTDOOR_AMBIENCE: Ambience = {
   fogColour: 0x2b2c2a, fogNear: 22, fogFar: 66,
   groundColour: 0x6e6149, wallColour: 0x6b6557,
   interior: false, wallHeight: 1.35, ashDensity: 34, ambienceTrack: 'wind',
+  grade: { shadow: 0x7789a8, highlight: 0xffd9a8, strength: 0.42, contrast: 1.06, lift: 0.006 },
 };
 
 const VILLAGE_AMBIENCE: Ambience = {
@@ -69,6 +70,7 @@ const CRYPT_AMBIENCE: Ambience = {
   fogColour: 0x0e0e12, fogNear: 11, fogFar: 38,
   groundColour: 0x635a4b, wallColour: 0x685f50,
   interior: true, wallHeight: 3.4, ashDensity: 48, ambienceTrack: 'crypt',
+  grade: { shadow: 0x7e8f96, highlight: 0xffcf92, strength: 0.5, contrast: 1.07, lift: 0.004 },
 };
 
 // ---------------------------------------------------------------------------

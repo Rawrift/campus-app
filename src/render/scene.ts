@@ -16,6 +16,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
+import { GradePass } from './grade';
 import { Rng } from '@/core/rng';
 import { clamp, lerp } from '@/core/math';
 import { Tile, type GroundItem, type SimWorld } from '@/sim/world';
@@ -147,6 +148,8 @@ export class GameScene {
   private bloom: UnrealBloomPass;
   /** Exposed so the tuning tool can sweep its parameters against a live scene. */
   readonly gtao: GTAOPass;
+  /** Exposed so the grading tool can A/B it against a live scene. */
+  readonly grade: GradePass;
   bloomEnabled = true;
   private aoEnabled = true;
   private ambience: Ambience | null = null;
@@ -267,6 +270,12 @@ export class GameScene {
 
     this.bloom = new UnrealBloomPass(size, 0.62, 0.72, 0.82);
     this.composer.addPass(this.bloom);
+
+    // Before the output pass, so it works on linear HDR values: the shadow and
+    // highlight weights have to be measured on real luminance, not on numbers
+    // a tone curve has already compressed.
+    this.grade = new GradePass();
+    this.composer.addPass(this.grade);
     // OutputPass applies tone mapping and the colour-space conversion at the
     // end of the chain, which is where they belong once a composer exists.
     this.composer.addPass(new OutputPass());
@@ -324,6 +333,14 @@ export class GameScene {
     // Kept low: this is a dark game, and the environment is here to make metal
     // read as metal, not to light the scene.
     this.scene.environmentIntensity = amb.interior ? 0.3 : 0.45;
+
+    this.grade.apply({
+      shadowTint: new THREE.Color(amb.grade.shadow),
+      highlightTint: new THREE.Color(amb.grade.highlight),
+      strength: amb.grade.strength,
+      contrast: amb.grade.contrast,
+      lift: amb.grade.lift,
+    });
     envSource.dispose();
 
     this.scene.fog = new THREE.Fog(amb.fogColour, amb.fogNear, amb.fogFar);

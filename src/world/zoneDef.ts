@@ -115,6 +115,23 @@ export interface Ambience {
    * the scene that occupies the space rather than sitting in it.
    */
   readonly ashDensity: number;
+  /**
+   * Split-tone grade for this zone.
+   *
+   * Almost everything here is lit by fire, so almost everything lands in the
+   * same band of warm brown and a wall in shadow differs from a wall in
+   * torchlight in brightness but hardly at all in hue. Pushing the shadows one
+   * way and the firelight the other is what makes them read as two kinds of
+   * light rather than one light at two strengths.
+   */
+  readonly grade: {
+    readonly shadow: number;
+    readonly highlight: number;
+    readonly strength: number;
+    readonly contrast: number;
+    /** Ambient colour left in the darkest parts. Small; see `grade.ts`. */
+    readonly lift: number;
+  };
   /** Drives the procedural ambient audio bed (§31). */
   readonly ambienceTrack: 'wind' | 'crypt' | 'village';
 }

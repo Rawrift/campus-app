@@ -1,5 +1,41 @@
 # CHANGELOG
 
+## 0.7.0 — Colour grading
+
+The scene lit correctly and still came out as one note. Almost everything in it
+is lit by fire, so almost everything landed in the same band of warm brown: a
+wall in shadow and a wall in torchlight differed in brightness but hardly at all
+in hue, and without that difference the eye had nothing to separate lit from
+unlit. Reference frames for this kind of scene are not warmer than ours, they
+are *further apart* — shadows pushed cool, firelight pushed amber, so the two
+read as two kinds of light rather than one light at two strengths.
+
+A split-tone pass now runs before the output pass, on linear HDR values, because
+the shadow and highlight weights have to be measured on real luminance rather
+than on numbers a tone curve has already compressed. Settings are per zone.
+
+Measured on the frame, on the blue-minus-red axis: the gap between a torchlit
+wall and a shadowed floor went from 37 units to 53, a 43% increase in separation.
+
+Three attempts, each corrected by measurement rather than by eye:
+
+- **The first version crushed the crypt.** Tinting multiplicatively keeps black
+  black, which is right — but a colour's components are well under 1, so
+  multiplying by `0x2f3c44` directly is not a hue shift, it is a two-thirds
+  exposure cut wearing one. The tints are normalised by their own luminance now,
+  so they move hue and nothing else.
+- **The split sat where no pixel was.** The threshold was 0.35 linear, and a
+  torchlit crypt lives between roughly 0.01 and 0.15 — so every pixel scored as
+  shadow, nothing ever received the warm end, and the pass did nothing but
+  darken. Measured, the separation it was supposed to create had moved by 0.2 of
+  255. The pivot and split now sit where the scene actually is.
+- **Multiplying cannot tint black.** With the split fixed the highlights warmed
+  by 16 units and the shadows moved by half of one, because a pitch-black pixel
+  has no light in it to shift. Reference shadows are not black, they are dark
+  blue. A small ambient floor of the shadow colour is added where the shadow
+  weight is high — deliberately tiny, and smaller in the crypt than outdoors,
+  because unlit corners there are a mechanic rather than a lighting fault.
+
 ## 0.6.0 — Architecture, and the occlusion cutout it needed
 
 ### Gateways
