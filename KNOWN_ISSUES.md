@@ -93,11 +93,17 @@ the real bug behind this entry: every builder seeded its texture with
 `rng.int(0, 999)`, the material cache keys on the seed, and a zone of 800 props
 therefore produced hundreds of one-prop batches. Four variants per material now.
 
+Actors were the other 83%. Each enemy was nine meshes and eleven draw groups;
+folding its rigid parts (weapon, claws, rags) into the one skinned mesh by
+binding them to their bone with full weight took that to one mesh and five
+groups. The stress scene went from 915 draw calls to 415 against a 900 budget.
+
 What remains is that a prop's geometry is still baked per instance rather than
 instanced, so a hundred identical barrels cost a hundred barrels' worth of
 vertices. `InstancedMesh` per (kind, variant) would fix it and is the highest-
 value optimisation left, but it is now a triangle-budget question rather than a
-draw-call one.
+draw-call one — and with this much draw-call headroom, triangles are what will
+bind first.
 
 ### The bundle is one 787 KB chunk
 Almost all of it is Three.js. It is not code-split, so first load fetches

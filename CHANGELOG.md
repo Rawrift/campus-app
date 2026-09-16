@@ -18,6 +18,33 @@ None of this was safe to add before the change below. Walking under an arch
 means walking behind one, and behind one prop used to mean every prop of that
 material vanishing.
 
+### 915 draw calls to 415
+
+The budget check failed after the arches went in, at 915 against its 900 limit.
+Raising the limit would have been the wrong move — the number crept up because
+of real waste, not because the scene finally got as heavy as the budget allowed.
+
+Three finds, in order of size:
+
+- **An enemy's rigid parts did not need to be meshes.** A weapon, a claw or a
+  buckle is rigid and hangs off exactly one bone, so leaving each as its own
+  mesh looks correct — and costs a draw call each, doubled by the shadow pass.
+  Measured on a villager: eight such meshes totalling 288 vertices against 743
+  for the whole body. Binding them to their bone with full weight is
+  mathematically identical to parenting them there, so the animation is
+  unchanged and they merge into the single skinned mesh.
+- **Rags were named for nothing.** In this rig a name means "the animator moves
+  this individually, never merge it". Nothing ever looked the rags up. The name
+  bought six draw calls per enemy for cloth that simply hangs off a torso.
+- **Near-identical tints each bought a material family.** Prop builders author
+  colours by eye, so stone appeared as 0x6a665e, 0x615c53, 0x635e55 and
+  0x6a604e — four greys nobody can tell apart at this distance, each with its
+  own batch, times the texture variants. Tints are now snapped to the nearest 16
+  per channel, which moves a colour by at most 3%. Opaque scenery batches: 71 to
+  50.
+
+An enemy is now one mesh with five draw groups, down from nine and eleven.
+
 ### The occlusion cutout
 
 Scenery between the camera and the character has to get out of the way. The way
