@@ -103,10 +103,19 @@ draw-call one.
 Almost all of it is Three.js. It is not code-split, so first load fetches
 everything. Fine for a game, poor for a web page.
 
-### Occlusion fade is a single raycast
-Only geometry on the exact camera→player line fades. A wall that hides the
-player's shoulder but not their centre stays opaque. A capsule cast or a small
-raycast fan would fix it.
+### ~~Occlusion fade is a single raycast~~ — replaced
+It was worse than "a wall that hides a shoulder stays opaque". The fade was
+applied to whatever *mesh* the ray hit, and terrain and props are merged into
+one mesh per material to hold the draw-call budget — so the mesh it hit was
+every wall in the zone, or every wooden object in it. Measured in the hub, 36 of
+40 camera positions had something fading and up to five batches at once.
+
+It is now a per-fragment cutout in the scenery shaders: anything drawn closer to
+the camera than the character, inside a disc around them on screen, is dithered
+away. That has no concept of a mesh, so batching cannot break it, and it fixes
+the shoulder case for free. Upward-facing surfaces are exempt — the floor is
+always closer to the camera than the character and never hides them, so without
+the exemption the cutout punches a hole in the ground.
 
 ### Enemy pathing is steering, not pathfinding
 Enemies steer with obstacle avoidance and wall sliding rather than running A*.

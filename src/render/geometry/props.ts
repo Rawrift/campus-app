@@ -46,11 +46,19 @@ const TEXTURE_VARIANTS = 4;
  * resolve. Anything a player could stand behind still casts.
  */
 
-const stone = (rng: Rng, tint = 0x6a665e) => material('stone', tint, rng.int(0, TEXTURE_VARIANTS - 1));
-const wood = (rng: Rng, tint = 0x55432c) => material('wood', tint, rng.int(0, TEXTURE_VARIANTS - 1));
-const iron = (rng: Rng, tint = 0x5a554d) => material('iron', tint, rng.int(0, TEXTURE_VARIANTS - 1));
-const cloth = (rng: Rng, tint = 0x6a6154) => material('cloth', tint, rng.int(0, TEXTURE_VARIANTS - 1));
-const bone = (rng: Rng) => material('bone', 0xbfb08a, rng.int(0, TEXTURE_VARIANTS - 1));
+/**
+ * Scenery opts into the occlusion cutout; actors do not.
+ *
+ * A prop between the camera and the character is an obstruction and should get
+ * out of the way. An enemy standing there is information the player needs.
+ */
+const SCENERY = { cutout: true } as const;
+
+const stone = (rng: Rng, tint = 0x6a665e) => material('stone', tint, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
+const wood = (rng: Rng, tint = 0x55432c) => material('wood', tint, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
+const iron = (rng: Rng, tint = 0x5a554d) => material('iron', tint, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
+const cloth = (rng: Rng, tint = 0x6a6154) => material('cloth', tint, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
+const bone = (rng: Rng) => material('bone', 0xbfb08a, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
 
 function box(g: THREE.Group, w: number, h: number, d: number, mat: THREE.Material, x = 0, y = 0, z = 0): THREE.Mesh {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -213,7 +221,7 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
   table_set: (rng, g) => {
     BUILDERS.table!(rng, g);
     // The detail that does the storytelling: the meal is still on it.
-    const pot = material('stone', 0x7a6a58, rng.int(0, TEXTURE_VARIANTS - 1));
+    const pot = material('stone', 0x7a6a58, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
     for (let i = 0; i < 4; i++) {
       const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 5, 0, TAU, 0, Math.PI / 2), pot);
       bowl.rotation.x = Math.PI;
@@ -248,7 +256,7 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
 
   // --- bodies -------------------------------------------------------------
   corpse: (rng, g) => {
-    const skin = material('skin', 0x8a7460, rng.int(0, TEXTURE_VARIANTS - 1));
+    const skin = material('skin', 0x8a7460, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
     const rag = cloth(rng, 0x4f4739);
     const torso = box(g, 0.32, 0.16, 0.62, rag, 0, 0.09);
     torso.rotation.y = rng.range(-0.3, 0.3);
@@ -276,7 +284,7 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
     g.add(head);
   },
   animal_corpse: (rng, g) => {
-    const hide = material('leather', 0x4a3a2c, rng.int(0, TEXTURE_VARIANTS - 1));
+    const hide = material('leather', 0x4a3a2c, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.26, 0.6, 4, 8), hide);
     body.rotation.z = Math.PI / 2;
     body.position.y = 0.24;
@@ -314,7 +322,7 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
     flame(g, 1.0, 1.5);
   },
   candles: (rng, g) => {
-    const wax = material('cloth', 0xd8cfae, rng.int(0, TEXTURE_VARIANTS - 1));
+    const wax = material('cloth', 0xd8cfae, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
     for (let i = 0; i < rng.int(3, 6); i++) {
       const h = rng.range(0.1, 0.26);
       const x = rng.range(-0.16, 0.16);
@@ -446,7 +454,7 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
     // Sparse, sickly foliage: desaturated, never green enough to look healthy.
     // Clumps hug the upper trunk rather than floating free, and are flattened
     // and irregular so they read as foliage instead of as rocks in mid-air.
-    const leaf = material('cloth', 0x2f3524, rng.int(0, TEXTURE_VARIANTS - 1), {
+    const leaf = material('cloth', 0x2f3524, rng.int(0, TEXTURE_VARIANTS - 1), { ...SCENERY,
       transparent: true, opacity: 0.92, side: THREE.DoubleSide, flatShading: true,
     });
     const clumps = rng.int(4, 8);
@@ -478,7 +486,7 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
     }
   },
   reeds: (rng, g) => {
-    const mat = material('cloth', 0x5e6140, rng.int(0, TEXTURE_VARIANTS - 1), { side: THREE.DoubleSide });
+    const mat = material('cloth', 0x5e6140, rng.int(0, TEXTURE_VARIANTS - 1), { ...SCENERY, side: THREE.DoubleSide });
     for (let i = 0; i < rng.int(6, 14); i++) {
       const h = rng.range(0.5, 1.1);
       const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.035, h), mat);
@@ -542,7 +550,7 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
   },
   house: (rng, g) => {
     const w = wood(rng, 0x4c3c27);
-    const plaster = material('stone', 0x736a58, rng.int(0, TEXTURE_VARIANTS - 1));
+    const plaster = material('stone', 0x736a58, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
     box(g, 3.4, 2.3, 3.0, plaster, 0, 1.15);
     // Exposed timber framing — the period cue that sells the setting.
     for (const x of [-1.6, 1.6]) box(g, 0.14, 2.3, 0.14, w, x, 1.15, 1.45);
@@ -563,8 +571,8 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
     g.add(win);
   },
   house_burnt: (rng, g) => {
-    const charred = material('wood', 0x2a231c, rng.int(0, TEXTURE_VARIANTS - 1));
-    const plaster = material('stone', 0x4a443a, rng.int(0, TEXTURE_VARIANTS - 1));
+    const charred = material('wood', 0x2a231c, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
+    const plaster = material('stone', 0x4a443a, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
     // Two standing walls and a collapsed corner: legible as a ruin from above.
     box(g, 3.2, rng.range(1.2, 2.0), 0.22, plaster, 0, 0.9, -1.4);
     box(g, 0.22, rng.range(0.8, 1.7), 2.8, plaster, -1.5, 0.7, 0);
@@ -582,7 +590,7 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
   },
   hut: (rng, g) => {
     const w = wood(rng, 0x483a26);
-    cyl(g, 1.1, 1.25, 1.7, material('stone', 0x6a604e, rng.int(0, TEXTURE_VARIANTS - 1)), 0, 0.85, 0, 8);
+    cyl(g, 1.1, 1.25, 1.7, material('stone', 0x6a604e, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY), 0, 0.85, 0, 8);
     const roof = new THREE.Mesh(new THREE.ConeGeometry(1.6, 1.2, 8), w);
     roof.position.y = 2.2;
     roof.castShadow = true;
@@ -613,7 +621,7 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
   bell: (rng, g) => {
     // Tarnished bronze, and no emissive: a bell that glows with no fire in it
     // reads as treasure rather than as the thing the abbey rang for the dead.
-    const brass = material('darksteel', 0x6a5526, rng.int(0, TEXTURE_VARIANTS - 1), {
+    const brass = material('darksteel', 0x6a5526, rng.int(0, TEXTURE_VARIANTS - 1), { ...SCENERY,
       side: THREE.DoubleSide,
     });
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.92, 1.3, 14, 1, true), brass);
@@ -628,7 +636,7 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
     box(g, 2.8, 0.24, 0.24, wood(rng, 0x3a2e1e), 0, 2.5);
   },
   bell_broken: (rng, g) => {
-    const brass = material('darksteel', 0x5e4c24, rng.int(0, TEXTURE_VARIANTS - 1), { side: THREE.DoubleSide });
+    const brass = material('darksteel', 0x5e4c24, rng.int(0, TEXTURE_VARIANTS - 1), { ...SCENERY, side: THREE.DoubleSide });
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.92, 1.3, 14, 1, true), brass);
     body.position.y = 0.62;
     // Toppled and half-buried. The crack is on the inside (see the zone note).
@@ -642,14 +650,14 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
     }
   },
   bell_rope: (rng, g) => {
-    const rope = material('cloth', 0x6e6248, rng.int(0, TEXTURE_VARIANTS - 1));
+    const rope = material('cloth', 0x6e6248, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
     // Cut at head height, from below. That detail is the story.
     cyl(g, 0.03, 0.028, 2.2, rope, 0, 2.5, 0, 6);
     const frayed = cyl(g, 0.035, 0.02, 0.14, rope, 0, 1.35, 0, 6);
     frayed.rotation.z = 0.2;
   },
   banner: (rng, g) => {
-    const fabric = material('cloth', 0x5a3a32, rng.int(0, TEXTURE_VARIANTS - 1), { side: THREE.DoubleSide, transparent: true, opacity: 0.95 });
+    const fabric = material('cloth', 0x5a3a32, rng.int(0, TEXTURE_VARIANTS - 1), { ...SCENERY, side: THREE.DoubleSide, transparent: true, opacity: 0.95 });
     const cloth1 = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 1.8, 1, 4), fabric);
     cloth1.position.y = 1.3;
     cloth1.name = 'banner';
@@ -683,11 +691,11 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
       box(g, 0.08, 0.9, 0.08, w, x, 0.45, z);
     }
     for (const x of [-0.85, 0.85]) box(g, 0.08, 1.1, 0.08, w, x, 1.5, -0.35);
-    const awning = box(g, 2.1, 0.06, 1.2, material('cloth', 0x6a4a38, rng.int(0, TEXTURE_VARIANTS - 1)), 0, 2.0, 0);
+    const awning = box(g, 2.1, 0.06, 1.2, material('cloth', 0x6a4a38, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY), 0, 2.0, 0);
     awning.rotation.x = 0.22;
   },
   hay: (rng, g) => {
-    const m = material('cloth', 0x8a7a48, rng.int(0, TEXTURE_VARIANTS - 1));
+    const m = material('cloth', 0x8a7a48, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
     const bale = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.6, 10), m);
     bale.rotation.z = Math.PI / 2;
     bale.position.y = 0.4;
@@ -710,7 +718,7 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
   },
   tuft: (rng, g) => {
     // Dead, desaturated grass: blades of two lengths so it is not a fan.
-    const mat = material('cloth', rng.chance(0.5) ? 0x53553a : 0x4a4632, rng.int(0, TEXTURE_VARIANTS - 1), {
+    const mat = material('cloth', rng.chance(0.5) ? 0x53553a : 0x4a4632, rng.int(0, TEXTURE_VARIANTS - 1), { ...SCENERY,
       side: THREE.DoubleSide,
     });
     const blades = rng.int(4, 9);

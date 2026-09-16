@@ -17,7 +17,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { Rng } from '@/core/rng';
-import { clamp, damp, lerp } from '@/core/math';
+import { clamp, lerp } from '@/core/math';
 import { Tile, type GroundItem, type SimWorld } from '@/sim/world';
 import { ARCHETYPES } from '@/data/archetypes.data';
 import { ENEMIES } from '@/data/enemies.data';
@@ -35,7 +35,7 @@ import { buildProp } from './geometry/props';
 import { CharacterRig, type AnimState } from './geometry/character';
 import { EnemyRig } from './geometry/enemies';
 import { VfxSystem, burstForDamage } from './vfx';
-import { emissive, material } from './materials';
+import { emissive, material, occlusionUniforms } from './materials';
 
 interface ActorView {
   rig: CharacterRig | EnemyRig;
@@ -128,9 +128,6 @@ export class GameScene {
   private sunDir = new THREE.Vector3(0.6, 0.8, 0.4);
   private moveMarker: THREE.Mesh;
   private interactMarker: THREE.Mesh;
-  /** Meshes currently faded because they occlude the player (§6). */
-  private faded = new Set<THREE.Mesh>();
-  private raycaster = new THREE.Raycaster();
   /** Equipment signature, so the character is rebuilt only when gear changes. */
   private equipSignature = '';
   private rng = new Rng('scene');
@@ -154,6 +151,9 @@ export class GameScene {
   private aoEnabled = true;
   private ambience: Ambience | null = null;
   private ashTint: [number, number, number] = [0.5, 0.48, 0.45];
+  private occlusionTarget = new THREE.Vector3();
+  private occlusionNdc = new THREE.Vector3();
+  private drawingBuffer = new THREE.Vector2();
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -524,7 +524,6 @@ export class GameScene {
     });
     this.zoneGroup.clear();
     this.flickers.length = 0;
-    this.faded.clear();
 
     for (const view of this.actorViews.values()) {
       this.scene.remove(view.root);
@@ -980,47 +979,51 @@ export class GameScene {
    * Raycasts once per frame along the camera→player line and fades whatever it
    * hits, restoring anything that is no longer in the way.
    */
+  /**
+   * Points the occlusion cutout at the character.
+   *
+   * The cutout itself lives in the scenery shaders (see `occlusionUniforms`);
+   * all this does is say where the character is on screen and how far away. It
+   * replaced a raycast-and-fade-the-mesh approach that could not work here:
+   * terrain and props are merged into one mesh per material to hold the
+   * draw-call budget, so fading "the mesh you hit" faded every wall, or every
+   * wooden object, in the zone at once.
+   *
+   * The radius grows a little with how close the camera is, so the hole stays
+   * roughly the size of the character rather than the size of the screen.
+   */
   private updateOcclusion(px: number, pz: number): void {
-    const playerPos = new THREE.Vector3(px, 1.0, pz);
-    const camPos = this.cameraRig.camera.position;
-    const dir = playerPos.clone().sub(camPos);
-    const distance = dir.length();
-    dir.normalize();
+    const camera = this.cameraRig.camera;
+    // `project` reads `matrixWorldInverse`, which three.js only refreshes when
+    // it renders. The rig has already moved the camera for this frame, so
+    // without this the cutout is projected through last frame's camera and sits
+    // visibly beside the character whenever the camera is moving.
+    camera.updateMatrixWorld();
+    camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
 
-    this.raycaster.set(camPos, dir);
-    this.raycaster.far = distance - 0.6;
-    const hits = this.raycaster.intersectObject(this.zoneGroup, true);
+    const target = this.occlusionTarget.set(px, 1.0, pz);
+    const distance = camera.position.distanceTo(target);
 
-    const nowFaded = new Set<THREE.Mesh>();
-    for (const hit of hits) {
-      const mesh = hit.object as THREE.Mesh;
-      if (!(mesh instanceof THREE.Mesh)) continue;
-      const mat = mesh.material as THREE.Material;
-      if (Array.isArray(mat)) continue;
-      nowFaded.add(mesh);
-      if (!this.faded.has(mesh)) {
-        // Clone on first fade so we never mutate the shared cached material.
-        mesh.userData.originalMaterial = mat;
-        const clone = mat.clone();
-        clone.transparent = true;
-        clone.depthWrite = false;
-        mesh.material = clone;
-        this.faded.add(mesh);
-      }
-      const m = mesh.material as THREE.Material;
-      m.opacity = damp(m.opacity, 0.22, 0.002, 0.016);
-    }
+    // Into normalised device coordinates, then into the pixel space that
+    // `gl_FragCoord` uses. The renderer's drawing buffer is the authority on
+    // size: the canvas may be scaled by CSS or by a device pixel ratio.
+    const ndc = this.occlusionNdc.copy(target).project(camera);
+    this.renderer.getDrawingBufferSize(this.drawingBuffer);
+    occlusionUniforms.uCutCentre.value.set(
+      (ndc.x * 0.5 + 0.5) * this.drawingBuffer.x,
+      (ndc.y * 0.5 + 0.5) * this.drawingBuffer.y,
+    );
 
-    for (const mesh of [...this.faded]) {
-      if (nowFaded.has(mesh)) continue;
-      const m = mesh.material as THREE.Material;
-      m.opacity = damp(m.opacity, 1, 0.002, 0.016);
-      if (m.opacity > 0.97) {
-        m.dispose();
-        mesh.material = mesh.userData.originalMaterial as THREE.Material;
-        this.faded.delete(mesh);
-      }
-    }
+    // A world-space radius converted to pixels through the projection, so the
+    // hole tracks the character's apparent size at any camera distance or
+    // field of view.
+    const worldRadius = 1.15;
+    const pixelsPerUnit = this.drawingBuffer.y
+      / (2 * Math.tan((camera.fov * Math.PI) / 360) * Math.max(0.001, distance));
+    occlusionUniforms.uCutRadius.value = worldRadius * pixelsPerUnit;
+
+    // Bias towards the camera so the character's own depth range is never cut.
+    occlusionUniforms.uCutDepth.value = distance - 0.75;
   }
 
   // --- hit feedback ------------------------------------------------------

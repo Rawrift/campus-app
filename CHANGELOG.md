@@ -1,5 +1,44 @@
 # CHANGELOG
 
+## 0.6.0 — The occlusion cutout
+
+Scenery between the camera and the character has to get out of the way. The way
+it did that was a raycast that faded whatever mesh it hit, and that is
+fundamentally incompatible with how this renderer draws: terrain and props are
+merged into one mesh per material to hold the draw-call budget, so "whatever
+mesh you hit" is *every wall in the zone*, or every wooden object in it.
+
+Measured before touching it — 36 of 40 camera positions around the hub had
+something fading, up to five batches at once, the largest 868 vertices. Adding
+prop density had made a long-standing bug much louder.
+
+It is now a per-fragment cutout in the scenery shaders. Anything drawn closer to
+the camera than the character, inside a disc around them on screen, is dithered
+away with a 4×4 ordered dither. Discarding rather than blending is deliberate: a
+discard needs no transparent pass, no depth sorting, and no cloned material.
+
+Because it has no concept of a mesh, batching cannot break it — and it fixes
+what the raycast could never do, which is the wall that hides a shoulder but not
+the character's centre. One ray only ever found what sat on the exact centre
+line.
+
+Actors are not patched. An enemy standing between the camera and the player is
+information the player needs, not an obstruction.
+
+Three things had to be got right, and each was wrong first:
+
+- **The projection lagged a frame.** `Object3D.project` reads
+  `matrixWorldInverse`, which three.js refreshes only when it renders — so the
+  cutout was projected through the previous frame's camera and sat visibly
+  beside the character whenever the camera moved.
+- **The dither was striped.** A threshold that varies mostly along one axis
+  dithers into vertical lines, which reads as damage rather than as a soft edge.
+  The 4×4 Bayer is now built from two nested 2×2 levels, so it scatters in both.
+- **The floor was being cut.** Ground in front of the character is genuinely
+  closer to the camera, so the disc punched a hole in it and the background
+  showed through. Upward-facing surfaces are exempt: in a top-down view the
+  floor never hides anyone.
+
 ## 0.5.0 — Air, contact, and a world with things in it
 
 ### Ambient occlusion

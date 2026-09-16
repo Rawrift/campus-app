@@ -248,26 +248,26 @@ export function buildTerrain(grid: NavGrid, ambience: Ambience, seed: number): T
   // thing that makes light reveal a surface there. It is pushed harder than on
   // props, which already have form to catch the light.
   const groundMat = material(ambience.interior ? 'stone' : 'ground', ambience.groundColour, seed,
-    { repeat, normalScale: 1.6, vertexColors: true });
+    { repeat, normalScale: 1.6, vertexColors: true, cutout: true });
   const pathMat = material(ambience.interior ? 'stone' : 'ground',
     new THREE.Color(ambience.groundColour).multiplyScalar(0.86).getHex(), seed + 1,
-    { repeat, normalScale: 1.5, vertexColors: true });
+    { repeat, normalScale: 1.5, vertexColors: true, cutout: true });
   // Standing water is glossier than the bank around it, but at roughness 0.35
   // it mirrors the sky gradient out of the environment map and every mire tile
   // turns into a pale blue rectangle -- a plastic surface, which §5 rules out.
   // 0.62 still catches a wet sheen off the torches without reflecting the sky.
   const mireMat = material('ground',
     new THREE.Color(ambience.groundColour).lerp(new THREE.Color(0x1d231c), 0.72).getHex(), seed + 2,
-    { repeat, roughness: 0.62, vertexColors: true });
+    { repeat, roughness: 0.62, vertexColors: true, cutout: true });
   const wallMat = material('stone', ambience.wallColour, seed + 3,
-    { repeat, normalScale: 1.2, vertexColors: true });
+    { repeat, normalScale: 1.2, vertexColors: true, cutout: true });
   const wallTopMat = material('stone',
     new THREE.Color(ambience.wallColour).multiplyScalar(0.72).getHex(), seed + 4,
-    { repeat, vertexColors: true });
+    { repeat, vertexColors: true, cutout: true });
 
   const surroundMat = material('ground',
     new THREE.Color(ambience.groundColour).multiplyScalar(0.52).getHex(), seed + 5,
-    { repeat, normalScale: 1.3, vertexColors: true });
+    { repeat, normalScale: 1.3, vertexColors: true, cutout: true });
 
   add(surroundB, surroundMat);
   add(floorB, groundMat);

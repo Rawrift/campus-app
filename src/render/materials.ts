@@ -48,6 +48,107 @@ const RECIPES: Record<MaterialKind, Recipe> = {
 
 const cache = new Map<string, THREE.MeshStandardMaterial>();
 
+/*
+ * The occlusion cutout.
+ *
+ * Scenery between the camera and the character has to get out of the way, and
+ * the obvious way -- raycast, then fade whatever mesh you hit -- is
+ * fundamentally incompatible with how this renderer draws. Terrain and props
+ * are merged into one mesh per material to hold the draw-call budget, so
+ * "whatever mesh you hit" is *every wall in the zone*, or every wooden object
+ * in it. Measured in the hub, 36 camera positions out of 40 had something
+ * fading and up to five batches were fading at once.
+ *
+ * So the cutout is done per fragment instead. Anything drawn closer to the
+ * camera than the character, inside a disc around them on screen, is dithered
+ * away. That fixes the batching problem by not caring about meshes at all, and
+ * it also fixes what the old approach could never do: a wall that hides a
+ * shoulder but not the character's centre used to stay solid, because one
+ * raycast only ever found what was on the exact centre line.
+ *
+ * Discarding rather than blending is deliberate: a discard needs no transparent
+ * pass, no depth sorting, and no cloned material. At this camera distance the
+ * dither reads as a soft edge.
+ *
+ * Every patched material shares this one uniforms object, so the renderer
+ * writes the character's position once per frame and all of them see it.
+ */
+export const occlusionUniforms = {
+  /** Character position in pixels, matching `gl_FragCoord`. */
+  uCutCentre: { value: new THREE.Vector2(-1000, -1000) },
+  /** Radius of the disc, in pixels. Zero disables the cutout. */
+  uCutRadius: { value: 0 },
+  /** Distance from the camera to the character, in world units. */
+  uCutDepth: { value: 0 },
+};
+
+/**
+ * Patches a material to dither away fragments in front of the character.
+ *
+ * Applied to scenery only. Actors keep their solid materials: an enemy that
+ * happens to stand between the camera and the player is information the player
+ * needs, not an obstruction.
+ */
+function applyOcclusionCutout(mat: THREE.Material): void {
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uCutCentre = occlusionUniforms.uCutCentre;
+    shader.uniforms.uCutRadius = occlusionUniforms.uCutRadius;
+    shader.uniforms.uCutDepth = occlusionUniforms.uCutDepth;
+
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying float vCutDepth;\nvarying float vCutUp;',
+      )
+      .replace(
+        '#include <project_vertex>',
+        '#include <project_vertex>\nvCutDepth = -mvPosition.z;',
+      )
+      // How far this surface faces upward, in world space. The floor is the one
+      // thing that is always closer to the camera than the character and never
+      // hides them, so it has to be exempt or the cutout punches a hole in the
+      // ground and the background shows through it.
+      .replace(
+        '#include <defaultnormal_vertex>',
+        '#include <defaultnormal_vertex>\nvCutUp = normalize(mat3(modelMatrix) * objectNormal).y;',
+      );
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+        varying float vCutDepth;
+        varying float vCutUp;
+        uniform vec2 uCutCentre;
+        uniform float uCutRadius;
+        uniform float uCutDepth;
+        // A 4x4 ordered dither, built from two nested 2x2 levels. Cheaper than
+        // a texture lookup and stable in screen space, so the pattern does not
+        // crawl as the camera moves. The scatter has to be two-dimensional: a
+        // threshold that varies mostly along one axis dithers into stripes,
+        // which reads as damage rather than as a soft edge.
+        float cutBayer2(vec2 a) {
+          a = floor(a);
+          return fract(a.x * 0.5 + a.y * a.y * 0.75);
+        }
+        float cutDither(vec2 p) {
+          return cutBayer2(p * 0.5) * 0.25 + cutBayer2(p);
+        }`)
+      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+        if (uCutRadius > 0.0 && vCutDepth < uCutDepth && vCutUp < 0.72) {
+          float d = distance(gl_FragCoord.xy, uCutCentre) / uCutRadius;
+          if (d < 1.0) {
+            // Solid at the rim, gone at the centre. The dithered band is the
+            // outer quarter only: any wider and the pattern itself is what the
+            // eye sees instead of the character behind it.
+            float cut = 1.0 - smoothstep(0.72, 1.0, d);
+            if (cut > cutDither(gl_FragCoord.xy)) discard;
+          }
+        }`);
+  };
+  // Without this the renderer reuses one compiled program for materials whose
+  // parameters match, and a patched and an unpatched material would share it.
+  mat.customProgramCacheKey = () => 'cutout';
+}
+
 export interface MaterialOptions {
   /** Strength of the generated relief, where the surface provides one. */
   normalScale?: number;
@@ -63,6 +164,11 @@ export interface MaterialOptions {
   /** Overrides the recipe's roughness multiplier. */
   roughness?: number;
   flatShading?: boolean;
+  /**
+   * Dither this surface away when it stands between the camera and the
+   * character. Scenery wants it; actors do not.
+   */
+  cutout?: boolean;
 }
 
 /**
@@ -76,6 +182,9 @@ export function material(
     kind, colour, seed, opts.repeat ?? 1, opts.emissive ?? 0, opts.emissiveIntensity ?? 0,
     opts.transparent ? 1 : 0, opts.opacity ?? 1, opts.side ?? 0, opts.roughness ?? -1,
     opts.flatShading ? 1 : 0, opts.normalScale ?? 1, opts.vertexColors ? 1 : 0,
+    // Part of the key: a patched and an unpatched material are not the same
+    // material, and scenery and actors legitimately ask for both.
+    opts.cutout ? 1 : 0,
   ].join('|');
 
   const existing = cache.get(key);
@@ -104,6 +213,7 @@ export function material(
     flatShading: opts.flatShading ?? false,
     vertexColors: opts.vertexColors ?? false,
   });
+  if (opts.cutout) applyOcclusionCutout(mat);
   cache.set(key, mat);
   return mat;
 }
