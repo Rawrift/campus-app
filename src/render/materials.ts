@@ -175,9 +175,28 @@ export interface MaterialOptions {
  * Returns a cached material. Two calls with identical arguments return the very
  * same object, so changing one changes all of them — clone before mutating.
  */
+/**
+ * Snaps a tint to a coarse grid before it reaches the cache key.
+ *
+ * Prop builders author colours by eye, so the abbey ends up with stone at
+ * 0x6a665e, 0x615c53, 0x635e55 and 0x6a604e -- four greys nobody can tell apart
+ * at this camera distance, each of which was buying its own material family and
+ * therefore its own draw batch, times the texture variants. Rounding each
+ * channel to the nearest 16 moves a colour by at most 3% and lets those four
+ * collapse into one. Deliberately different colours are far more than 16 apart
+ * and stay separate.
+ */
+function quantiseTint(colour: number): number {
+  const snap = (v: number) => Math.min(255, Math.round(v / 16) * 16);
+  return (snap((colour >> 16) & 255) << 16)
+    | (snap((colour >> 8) & 255) << 8)
+    | snap(colour & 255);
+}
+
 export function material(
   kind: MaterialKind, colour: number, seed = 0, opts: MaterialOptions = {},
 ): THREE.MeshStandardMaterial {
+  colour = quantiseTint(colour);
   const key = [
     kind, colour, seed, opts.repeat ?? 1, opts.emissive ?? 0, opts.emissiveIntensity ?? 0,
     opts.transparent ? 1 : 0, opts.opacity ?? 1, opts.side ?? 0, opts.roughness ?? -1,
