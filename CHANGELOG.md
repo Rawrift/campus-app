@@ -1,6 +1,24 @@
 # CHANGELOG
 
-## 0.6.0 — The occlusion cutout
+## 0.6.0 — Architecture, and the occlusion cutout it needed
+
+### Gateways
+
+Every room in the abbey sat on the same plane with nothing above head height
+between them, so moving through it read as crossing a floor plan rather than
+passing through architecture. Each threshold now carries an arch, scaled so its
+columns land on the corridor walls rather than standing in the doorway. The
+belfry gets the widest one: the boss should be behind something.
+
+The nave and chapter house also got wall furniture — banners, niches, candles —
+because bare walls above knee height are exactly where the eye goes once an arch
+has drawn it upward, and a few more pillars through the aisles.
+
+None of this was safe to add before the change below. Walking under an arch
+means walking behind one, and behind one prop used to mean every prop of that
+material vanishing.
+
+### The occlusion cutout
 
 Scenery between the camera and the character has to get out of the way. The way
 it did that was a raycast that faded whatever mesh it hit, and that is

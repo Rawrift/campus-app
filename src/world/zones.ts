@@ -461,6 +461,42 @@ const DUNGEON: ZoneDef = {
     const roomCentre = (r: { x: number; y: number; w: number; h: number }) =>
       ({ x: r.x + r.w / 2, y: r.y + r.h / 2, r: Math.max(r.w, r.h) / 2 });
 
+    /*
+     * Gateways.
+     *
+     * Every room in this abbey sat on the same plane with nothing above head
+     * height between them, so moving through it read as crossing a floor plan
+     * rather than passing through architecture. An arch on each threshold is
+     * the cheapest thing that fixes that: it gives the camera something to
+     * travel under, it marks the transition between rooms without a loading
+     * seam, and it puts a hard silhouette at the one place the player always
+     * looks.
+     *
+     * Scaled so the columns land on the corridor walls rather than inside the
+     * walkable width. Props carry no collision, so this is purely a matter of
+     * the columns looking like they hold the wall up instead of standing in the
+     * doorway.
+     */
+    const CORRIDOR_ARCH = 1.36;
+    const gate = (x: number, y: number, acrossX: boolean, scale = CORRIDOR_ARCH): Prop => ({
+      kind: 'arch', x, y,
+      // The arch spans its local X, so a corridor running north-south wants it
+      // unrotated and an east-west one wants it turned a quarter.
+      rotation: acrossX ? Math.PI / 2 : 0,
+      scale, variant: Math.round(x * 7 + y),
+    });
+
+    props.push(
+      gate(31, 73, false),                    // entrance into the nave
+      gate(21.5, 57, true), gate(40.5, 57, true), // the nave's two forks
+      gate(21, 43, true), gate(41, 43, true),     // aisles into the chapter house
+      gate(30, 35.5, false),                  // chapter house to the rest
+      gate(31, 21.5, false),                  // rest to the descent
+      // The belfry door is the last one in the run and the widest corridor, so
+      // it gets the biggest arch: the boss should be behind something.
+      gate(32, 12.5, false, 1.8),
+    );
+
     // --- Entrance: it still looks like a church -----------------------------
     props.push(torch(26, 80), torch(36, 80), torch(26, 72), torch(36, 72));
     props.push({
@@ -480,10 +516,17 @@ const DUNGEON: ZoneDef = {
     });
     props.push(...scatter(grid, rng, ['rubble', 'bones', 'candles', 'skull_pile'], 27, roomCentre(O.nave)));
     props.push(brazier(28, 60, 11), brazier(34, 60, 12));
+    // Wall furniture. The nave's walls were bare above knee height, which is
+    // where the eye goes once there is an arch drawing it upward.
+    props.push(...lineWalls(grid, rng, ['banner', 'ossuary_niche', 'candles'], roomCentre(O.nave), 0.18));
 
     // --- West aisle: the ossuary proper ------------------------------------
     props.push(...lineWalls(grid, rng, ['ossuary_niche', 'skull_pile'], roomCentre(O.westAisle), 0.42));
     props.push(...scatter(grid, rng, ['bones', 'skull_pile', 'rubble', 'candles'], 30, roomCentre(O.westAisle)));
+    props.push(
+      { kind: 'pillar', x: 11, y: 45, rotation: 0, scale: 1.0, variant: 31 },
+      { kind: 'pillar', x: 17, y: 51, rotation: 0, scale: 1.0, variant: 32 },
+    );
     props.push({
       kind: 'altar', x: 14, y: 48, rotation: 0, scale: 1.1, variant: 0,
       note: 'The bones here are sorted by size, not by person.',
@@ -509,6 +552,11 @@ const DUNGEON: ZoneDef = {
     props.push({ kind: 'candles', x: 33, y: 43, rotation: 0, scale: 1, variant: 1 });
     props.push(brazier(26, 40, 14), brazier(36, 40, 15));
     props.push(...scatter(grid, rng, ['bones', 'rubble', 'candles', 'chair'], 18, roomCentre(O.chapter)));
+    props.push(...lineWalls(grid, rng, ['banner', 'ossuary_niche'], roomCentre(O.chapter), 0.16));
+    props.push(
+      { kind: 'pillar', x: 27, y: 41, rotation: 0, scale: 1.1, variant: 21 },
+      { kind: 'pillar_broken', x: 35, y: 41, rotation: 0.7, scale: 1.1, variant: 22 },
+    );
 
     // --- Reliquary: the elite guards something worth taking ----------------
     props.push({
