@@ -90,8 +90,71 @@ export class EnemyRig {
       shinR: { bone: this.shinR, tip: tip(this.shinR.userData.length as number ?? -0.3) },
     };
     this.binder.setSkeleton(spans);
+    this.absorbRigidParts(spans);
     this.skinned = this.binder.build();
     if (this.skinned) this.meshes.push(this.skinned);
+  }
+
+  /**
+   * Folds the rig's remaining rigid meshes into the skinned body.
+   *
+   * A weapon, a claw or a buckle is genuinely rigid and genuinely parented to
+   * one bone, so leaving it as its own mesh looks correct -- and costs a draw
+   * call each, every frame, twice over once the shadow pass runs. Measured on a
+   * villager: eight such meshes totalling 288 vertices, against 743 for the
+   * whole body. Eight draw calls to draw a third of a body.
+   *
+   * Binding them to their bone with full weight is mathematically identical to
+   * parenting them to it -- a vertex weighted 1.0 to a single bone follows that
+   * bone exactly -- so nothing about the animation changes, and they merge into
+   * the one skinned mesh instead.
+   *
+   * Named meshes are left alone: those are the ones the animator looks up and
+   * moves independently, like a wisp's core or a censer's flame.
+   */
+  private absorbRigidParts(spans: Record<string, BoneSpan>): void {
+    this.root.updateMatrixWorld(true);
+
+    // Descending past a child bone would bind its meshes to this bone instead:
+    // an arm's claws would follow the torso. Each bone claims only what hangs
+    // off it up to the next joint.
+    const boundary = new Set<THREE.Object3D>(Object.values(spans).map((s) => s.bone));
+
+    for (const [name, span] of Object.entries(spans)) {
+      const bone = span.bone;
+      const boneInverse = new THREE.Matrix4().copy(bone.matrixWorld).invert();
+      const absorbed: THREE.Mesh[] = [];
+
+      const walk = (node: THREE.Object3D, named: boolean) => {
+        // A named mesh, or anything under one, is animated on its own.
+        const isNamed = named || node.name !== '';
+        if (node instanceof THREE.Mesh && !isNamed && !Array.isArray(node.material)) {
+          absorbed.push(node);
+        }
+        for (const child of node.children) {
+          if (boundary.has(child)) continue;
+          walk(child, isNamed);
+        }
+      };
+      for (const child of bone.children) {
+        if (boundary.has(child)) continue;
+        walk(child, false);
+      }
+
+      for (const mesh of absorbed) {
+        // The mesh's placement relative to its bone, however deeply nested it
+        // sits under intermediate groups.
+        const local = new THREE.Matrix4()
+          .multiplyMatrices(boneInverse, mesh.matrixWorld);
+        this.binder.add(
+          mesh.geometry.clone(), bone, mesh.material as THREE.Material, [name], local,
+        );
+        mesh.removeFromParent();
+        mesh.geometry.dispose();
+        const at = this.meshes.indexOf(mesh);
+        if (at >= 0) this.meshes.splice(at, 1);
+      }
+    }
   }
 
   /**
@@ -101,8 +164,13 @@ export class EnemyRig {
    * An enemy is built from 10-20 primitives, and at one draw call each a
    * mid-size pack costs more draw calls than the entire level does. The parts
    * within a joint never move relative to each other, so they can be baked;
-   * anything the animator looks up by name (glowing cores, flames, rags) is
-   * left alone.
+   * anything the animator looks up by name (glowing cores, flames) is left
+   * alone.
+   *
+   * Rags used to be named too, which kept them out of every merge -- but
+   * nothing ever looked them up. The name was doing nothing except buying six
+   * draw calls per enemy, twice over once the shadow pass ran, for cloth that
+   * simply hangs off the torso.
    */
   private mergeStatic(): void {
     const groups = [this.torso, this.head, this.armL, this.armR, this.legL, this.legR];
@@ -620,7 +688,6 @@ export class EnemyRig {
         -0.3, Math.cos(a) * 0.2, Math.sin(a) * 0.2,
       );
       rag.rotation.y = -a;
-      rag.name = 'rag';
     }
   }
 
