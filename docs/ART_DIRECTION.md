@@ -52,6 +52,18 @@ sells a surface:
 | **Stone** | offset block courses, mortar, cracks, moss in the joints | uniformly rough |
 | **Ground** | coarse + fine noise, gravel in two tones, cart ruts | uniform |
 
+Every one of these also carries a **normal map**, derived from the same noise
+that drives its albedo so relief and colour agree — a crease is dark *and*
+recessed, rust is orange *and* raised. Stone and ground had one from the start;
+the materials a character is made of did not, which was backwards. A floor needs
+relief to look like anything, but it is the surface a player looks at least;
+armour, cloth and skin are what fills the frame when anything is happening.
+
+Depths are per material. Metal takes the strongest — its detail is hard-edged
+and it catches a moving highlight as a character turns. Skin takes the
+shallowest: skin that reads as orange peel is worse than skin with no relief at
+all.
+
 ### A lesson worth recording
 
 The first implementation painted everything very dark, reasoning that a dark

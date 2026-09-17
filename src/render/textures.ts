@@ -154,6 +154,29 @@ function displayColour(hex: number): { r: number; g: number; b: number } {
   return out;
 }
 
+/*
+ * Surface relief on the materials a character is made of.
+ *
+ * Stone and ground had normal maps; metal, leather, cloth, wood, bone and skin
+ * did not -- which is precisely backwards. A floor is a flat plane that needs
+ * relief to look like anything at all, true, but it is also the surface a
+ * player looks at least. Armour, cloth and skin are what fills the frame when
+ * anything is happening, and they were being lit as though a rivet, a fold and
+ * a pore were all the same perfectly smooth plastic.
+ *
+ * This is the cheap half of what a sculpt-and-bake pipeline buys. A reference
+ * character carries its detail in 20-40k triangles with the fine work baked
+ * into a normal map; without a sculpting tool the triangles are out of reach,
+ * but the normal map is not -- and at ARPG distance the normal map is doing
+ * most of the work anyway, because a rivet is smaller than a pixel and only
+ * ever reads as a highlight.
+ *
+ * Each height field is derived from the same noise that drives the albedo, so
+ * relief and colour agree: a crease is dark *and* recessed, rust is orange
+ * *and* raised. That correlation is what the roughness maps already do, and it
+ * is most of what separates a believable surface from a tinted plane.
+ */
+
 /**
  * Aged metal: a dark base, broad rust blooms, and bright scratches along the
  * edges where a real blade or plate gets handled most.
@@ -199,6 +222,14 @@ export function metalSurface(seed: number, base: number, rustAmount = 0.5): Surf
   ctx.putImageData(img, 0, 0);
   rctx.putImageData(rimg, 0, 0);
 
+  // Pitting, plus oxide that swells where the rust blooms.
+  const height = new Float32Array(SIZE * SIZE);
+  for (let i = 0; i < height.length; i++) {
+    const r = rust[i]!;
+    const rusty = Math.max(0, (r - (1 - rustAmount)) * 2.2);
+    height[i] = grain[i]! * 0.55 + rusty * 0.6;
+  }
+
   // Scratches: brighter and smoother than the surface around them.
   ctx.lineCap = 'round';
   rctx.lineCap = 'round';
@@ -223,7 +254,13 @@ export function metalSurface(seed: number, base: number, rustAmount = 0.5): Surf
     rctx.stroke();
   }
 
-  return { map: toTexture(canvas), roughnessMap: toDataTexture(rc) };
+  // Metal takes the strongest relief of the set: its detail is hard-edged, and
+  // it is the surface that catches a moving highlight as a character turns.
+  return {
+    map: toTexture(canvas),
+    roughnessMap: toDataTexture(rc),
+    normalMap: normalFromHeight(height, SIZE, 2.6),
+  };
 }
 
 /** Boiled leather: creases, grain, a greasy sheen where it has been worn. */
@@ -275,7 +312,17 @@ export function leatherSurface(seed: number, base: number): SurfaceMaps {
     }
     ctx.stroke();
   }
-  return { map: toTexture(canvas), roughnessMap: toDataTexture(rc) };
+  // Grain, and the creases where it has been folded and worn.
+  const height = new Float32Array(SIZE * SIZE);
+  for (let i = 0; i < height.length; i++) {
+    height[i] = grain[i]! * 0.7 + blotch[i]! * 0.35;
+  }
+
+  return {
+    map: toTexture(canvas),
+    roughnessMap: toDataTexture(rc),
+    normalMap: normalFromHeight(height, SIZE, 2.2),
+  };
 }
 
 /** Coarse woven cloth: visible weft, dirt at the hem, uniformly rough. */
@@ -315,7 +362,20 @@ export function clothSurface(seed: number, base: number): SurfaceMaps {
     ctx.lineTo(x + rng.range(-18, 18), y + rng.range(-18, 18));
     ctx.stroke();
   }
-  return { map: toTexture(canvas), roughnessMap: toDataTexture(rc) };
+  // The weave itself, plus the slow undulation of hanging cloth.
+  const height = new Float32Array(SIZE * SIZE);
+  for (let i = 0; i < height.length; i++) {
+    const x = i % SIZE;
+    const y = Math.floor(i / SIZE);
+    const weave = (Math.sin(x * 1.6) * 0.5 + 0.5) + (Math.sin(y * 1.6) * 0.5 + 0.5);
+    height[i] = weave * 0.28 + dirt[i]! * 0.4;
+  }
+
+  return {
+    map: toTexture(canvas),
+    roughnessMap: toDataTexture(rc),
+    normalMap: normalFromHeight(height, SIZE, 1.5),
+  };
 }
 
 /** Timber: directional grain, knots, water-darkened patches. */
@@ -364,7 +424,20 @@ export function woodSurface(seed: number, base: number): SurfaceMaps {
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
   }
-  return { map: toTexture(canvas), roughnessMap: toDataTexture(rc) };
+  // Growth rings stand proud of the softer wood between them, which is
+  // why weathered timber feels ridged rather than smooth.
+  const height = new Float32Array(SIZE * SIZE);
+  for (let i = 0; i < height.length; i++) {
+    const y = Math.floor(i / SIZE);
+    const rings = Math.sin((y + warp[i]! * 34) * 0.42) * 0.5 + 0.5;
+    height[i] = rings * 0.75 + damp[i]! * 0.25;
+  }
+
+  return {
+    map: toTexture(canvas),
+    roughnessMap: toDataTexture(rc),
+    normalMap: normalFromHeight(height, SIZE, 2.0),
+  };
 }
 
 /** Mortared stone: blocks, damp, moss in the joints, accumulated grime. */
@@ -555,7 +628,17 @@ export function boneSurface(seed: number, base = 0xc8b98a): SurfaceMaps {
   ctx.putImageData(img, 0, 0);
   rctx.fillStyle = rgb(160, 160, 160);
   rctx.fillRect(0, 0, SIZE, SIZE);
-  return { map: toTexture(canvas), roughnessMap: toDataTexture(rc) };
+  // Porous, and pitted where it has been lying in the wet.
+  const height = new Float32Array(SIZE * SIZE);
+  for (let i = 0; i < height.length; i++) {
+    height[i] = grain[i]! * 0.8 + stain[i]! * 0.2;
+  }
+
+  return {
+    map: toTexture(canvas),
+    roughnessMap: toDataTexture(rc),
+    normalMap: normalFromHeight(height, SIZE, 1.9),
+  };
 }
 
 /** Skin, deliberately weathered: sun, dirt, and the odd old scar (§3). */
@@ -592,7 +675,18 @@ export function skinSurface(seed: number, base: number): SurfaceMaps {
 
   rctx.fillStyle = rgb(180, 180, 180);
   rctx.fillRect(0, 0, 128, 128);
-  return { map: toTexture(canvas), roughnessMap: toDataTexture(rc) };
+  // Pores. Deliberately the shallowest of the set: skin that reads as
+  // orange peel is worse than skin with no relief at all.
+  const height = new Float32Array(128 * 128);
+  for (let i = 0; i < height.length; i++) {
+    height[i] = grain[i]! * 0.9;
+  }
+
+  return {
+    map: toTexture(canvas),
+    roughnessMap: toDataTexture(rc),
+    normalMap: normalFromHeight(height, 128, 1.1),
+  };
 }
 
 /**

@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## 0.8.0 — Surface relief on the things that fill the frame
+
+Stone and ground had normal maps. Metal, leather, cloth, wood, bone and skin did
+not — which is precisely backwards. A floor is a flat plane that needs relief to
+look like anything at all, true, but it is also the surface a player looks at
+least. Armour, cloth and skin are what fills the frame when anything is
+happening, and they were being lit as though a rivet, a fold and a pore were all
+the same perfectly smooth plastic.
+
+All six now carry one. This is the cheap half of what a sculpt-and-bake pipeline
+buys: a reference character carries its detail in 20–40k triangles with the fine
+work baked into a normal map, and without a sculpting tool the triangles are out
+of reach — but the normal map is not, and at ARPG distance it is doing most of
+the work anyway, because a rivet is smaller than a pixel and only ever reads as
+a highlight.
+
+Each height field is derived from the same noise that drives the albedo, so
+relief and colour agree: a crease is dark *and* recessed, rust is orange *and*
+raised. That correlation is what the roughness maps already do and is most of
+what separates a believable surface from a tinted plane.
+
+Depths are per material rather than uniform. Metal takes the strongest — its
+detail is hard-edged and it is the surface that catches a moving highlight as a
+character turns. Skin takes the shallowest, because skin that reads as orange
+peel is worse than skin with no relief at all.
+
 ## 0.7.0 — Colour grading
 
 The scene lit correctly and still came out as one note. Almost everything in it
