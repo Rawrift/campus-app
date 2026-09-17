@@ -146,14 +146,37 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
   },
 
   // --- containers ---------------------------------------------------------
+  /*
+   * Everything below varies its own shape, not just its placement.
+   *
+   * `scatter` already rotates and scales each instance, and that is not enough:
+   * a rotated copy of an identical mesh still reads as the same object, so a
+   * yard of thirty barrels reads as one barrel stamped thirty times. What
+   * breaks the pattern is the silhouette differing -- a taller cask beside a
+   * squat one, four hoops beside two, one lying on its side -- because that is
+   * what the eye compares.
+   */
   barrel: (rng, g) => {
-    const m = cyl(g, 0.21, 0.24, 0.62, wood(rng, 0x4f3f28), 0, 0.31, 0, 10);
+    const w = wood(rng, 0x4f3f28);
+    const tall = rng.range(0.5, 0.78);
+    const belly = rng.range(0.2, 0.26);
+    const m = cyl(g, belly * 0.88, belly, tall, w, 0, tall / 2, 0, 10);
     m.scale.set(1, 1, 1);
-    for (const y of [0.12, 0.5]) {
-      const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.235, 0.016, 5, 12), iron(rng));
+    // Two hoops on a small cask, three or four on a tall one.
+    const hoops = tall > 0.66 ? rng.int(3, 4) : 2;
+    for (let i = 0; i < hoops; i++) {
+      const t = (i + 0.5) / hoops;
+      const hoop = new THREE.Mesh(
+        new THREE.TorusGeometry(belly * 0.99, 0.016, 5, 12), iron(rng),
+      );
       hoop.rotation.x = Math.PI / 2;
-      hoop.position.y = y;
+      hoop.position.y = tall * t;
       g.add(hoop);
+    }
+    // One in five has been tipped over and left.
+    if (rng.chance(0.2)) {
+      g.rotation.z = Math.PI / 2;
+      g.position.y = belly;
     }
   },
   crate: (rng, g) => {
@@ -171,7 +194,12 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
     cyl(g, 0.06, 0.09, 0.1, cloth(rng, 0x5e5240), 0, 0.42, 0, 6);
   },
   basket: (rng, g) => {
-    cyl(g, 0.19, 0.14, 0.26, wood(rng, 0x6b5838), 0, 0.13, 0, 9);
+    const h = rng.range(0.2, 0.34);
+    const top = rng.range(0.16, 0.22);
+    const b = cyl(g, top, top * rng.range(0.6, 0.85), h, wood(rng, 0x6b5838), 0, h / 2, 0, 9);
+    // A woven basket loses its shape; a stiff one keeps it.
+    b.scale.x = rng.range(0.88, 1.12);
+    if (rng.chance(0.3)) b.rotation.z = rng.range(-0.25, 0.25);
   },
 
   // --- vehicles -----------------------------------------------------------
@@ -204,18 +232,41 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
     }
   },
   wheel: (rng, g) => {
-    const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.05, 6, 14), wood(rng, 0x44351f));
-    wheel.position.set(0, 0.06, 0);
+    const r = rng.range(0.26, 0.4);
+    const w = wood(rng, 0x44351f);
+    const wheel = new THREE.Mesh(new THREE.TorusGeometry(r, 0.05, 6, 14), w);
     wheel.rotation.x = Math.PI / 2;
     g.add(wheel);
+    // Spokes, and sometimes a couple missing -- a wheel left in a yard is a
+    // wheel that failed.
+    const spokes = rng.int(4, 6);
+    for (let i = 0; i < spokes; i++) {
+      if (rng.chance(0.18)) continue;
+      const a = (i / spokes) * TAU;
+      const spoke = box(g, r * 0.95, 0.04, 0.04, w, 0, 0, 0);
+      spoke.rotation.y = a;
+    }
+    // Always upright. Flat on the ground, a spoked ring reads as a painted
+    // symbol rather than as a wheel -- the spokes make a cross and the eye
+    // takes it for a marking.
+    g.rotation.x = -Math.PI / 2 + rng.range(-0.22, 0.22);
+    g.rotation.z = rng.range(-0.3, 0.3);
+    g.position.y = r * 0.96;
   },
 
   // --- furniture ----------------------------------------------------------
   table: (rng, g) => {
     const w = wood(rng, 0x4d3c26);
-    box(g, 1.1, 0.07, 0.66, w, 0, 0.7);
-    for (const [x, z] of [[-0.48, -0.26], [0.48, -0.26], [-0.48, 0.26], [0.48, 0.26]] as const) {
-      box(g, 0.07, 0.66, 0.07, w, x, 0.35, z);
+    const len = rng.range(0.85, 1.35);
+    const wide = rng.range(0.55, 0.78);
+    const h = rng.range(0.6, 0.76);
+    box(g, len, 0.07, wide, w, 0, h);
+    const legX = len / 2 - 0.07;
+    const legZ = wide / 2 - 0.07;
+    for (const [x, z] of [[-legX, -legZ], [legX, -legZ], [-legX, legZ], [legX, legZ]] as const) {
+      // One leg in eight has gone, which is why the table is out here.
+      if (rng.chance(0.12)) continue;
+      box(g, 0.07, h - 0.04, 0.07, w, x, (h - 0.04) / 2, z);
     }
   },
   table_set: (rng, g) => {
@@ -233,10 +284,20 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
   },
   chair: (rng, g) => {
     const w = wood(rng, 0x4d3c26);
-    box(g, 0.36, 0.05, 0.36, w, 0, 0.44);
-    box(g, 0.36, 0.42, 0.05, w, 0, 0.66, -0.16);
-    for (const [x, z] of [[-0.15, -0.15], [0.15, -0.15], [-0.15, 0.15], [0.15, 0.15]] as const) {
-      box(g, 0.045, 0.42, 0.045, w, x, 0.22, z);
+    const seat = rng.range(0.3, 0.42);
+    const h = rng.range(0.38, 0.5);
+    const back = rng.range(0.3, 0.5);
+    box(g, seat, 0.05, seat, w, 0, h);
+    const backRest = box(g, seat, back, 0.05, w, 0, h + back / 2, -seat / 2 + 0.03);
+    backRest.rotation.x = rng.range(-0.12, 0.02);
+    const legR = seat / 2 - 0.05;
+    for (const [x, z] of [[-legR, -legR], [legR, -legR], [-legR, legR], [legR, legR]] as const) {
+      box(g, 0.045, h, 0.045, w, x, h / 2, z);
+    }
+    // Knocked over, like most of the furniture in a place people fled.
+    if (rng.chance(0.25)) {
+      g.rotation.z = Math.PI / 2 + rng.range(-0.2, 0.2);
+      g.position.y = seat / 2;
     }
   },
   bed: (rng, g) => {
@@ -249,9 +310,17 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
   },
   bench: (rng, g) => {
     const w = wood(rng, 0x4a3a24);
-    box(g, 2.2, 0.08, 0.38, w, 0, 0.44);
-    box(g, 2.2, 0.36, 0.06, w, 0, 0.64, -0.17);
-    for (const x of [-0.9, 0.9]) box(g, 0.08, 0.44, 0.34, w, x, 0.22);
+    const len = rng.range(1.5, 2.6);
+    const depth = rng.range(0.32, 0.44);
+    const h = rng.range(0.38, 0.5);
+    box(g, len, 0.08, depth, w, 0, h);
+    // Some pews kept their backs and some did not.
+    if (rng.chance(0.7)) {
+      const back = box(g, len, rng.range(0.3, 0.44), 0.06, w, 0, h + 0.2, -depth / 2 + 0.02);
+      back.rotation.x = rng.range(-0.1, 0.0);
+    }
+    const legX = len / 2 - 0.12;
+    for (const x of [-legX, legX]) box(g, 0.08, h, depth - 0.04, w, x, h / 2);
   },
 
   // --- bodies -------------------------------------------------------------
@@ -396,14 +465,33 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
   },
   fence: (rng, g) => {
     const w = wood(rng, 0x4a3a26);
-    for (let i = 0; i < 3; i++) box(g, 0.07, 0.9, 0.07, w, -0.7 + i * 0.7, 0.45);
-    for (const y of [0.3, 0.68]) box(g, 1.5, 0.05, 0.05, w, 0, y);
+    const posts = rng.int(2, 4);
+    const span = rng.range(0.6, 0.85);
+    const h = rng.range(0.75, 1.05);
+    for (let i = 0; i < posts; i++) {
+      // Sunk a few centimetres. A box tilts about its own centre, so a post
+      // standing exactly on the ground lifts one corner clear of it the moment
+      // it leans -- and a fence hovering a centimetre above its own shadow is
+      // more noticeable than a fence standing perfectly straight. Real posts
+      // are buried anyway.
+      const post = box(g, 0.07, h, 0.07, w, (i - (posts - 1) / 2) * span, h / 2 - 0.05);
+      // Nothing left standing in this valley is plumb.
+      post.rotation.z = rng.range(-0.06, 0.06);
+    }
+    const width = span * (posts - 1) + 0.1;
+    const rails = rng.int(1, 2);
+    for (let i = 0; i < rails; i++) {
+      const rail = box(g, width, 0.05, 0.05, w, 0, h * (0.38 + i * 0.36));
+      rail.rotation.z = rng.range(-0.04, 0.04);
+    }
   },
   fence_broken: (rng, g) => {
     const w = wood(rng, 0x453524);
-    const p1 = box(g, 0.07, 0.8, 0.07, w, -0.6, 0.4);
+    // Sunk deeper than the standing fence, because these lean much further.
+    const p1 = box(g, 0.07, 0.8, 0.07, w, -0.6, 0.4 - 0.1);
     p1.rotation.z = rng.range(-0.4, 0.4);
-    const p2 = box(g, 0.07, rng.range(0.25, 0.5), 0.07, w, 0.55, 0.2);
+    const h2 = rng.range(0.25, 0.5);
+    const p2 = box(g, 0.07, h2, 0.07, w, 0.55, h2 / 2 - 0.08);
     p2.rotation.z = rng.range(-0.5, 0.5);
     const rail = box(g, 0.9, 0.05, 0.05, w, -0.2, 0.55);
     rail.rotation.z = rng.range(-0.35, 0.1);
@@ -428,8 +516,17 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
   },
   ladder: (rng, g) => {
     const w = wood(rng, 0x4a3a26);
-    for (const side of [-0.2, 0.2]) box(g, 0.07, 2.4, 0.07, w, side, 1.2);
-    for (let i = 0; i < 7; i++) box(g, 0.48, 0.05, 0.05, w, 0, 0.25 + i * 0.32);
+    const len = rng.range(1.8, 2.9);
+    const wide = rng.range(0.34, 0.46);
+    for (const side of [-wide / 2, wide / 2]) box(g, 0.07, len, 0.07, w, side, len / 2);
+    const rungs = Math.max(4, Math.round(len / 0.32));
+    for (let i = 0; i < rungs; i++) {
+      // A missing rung is what makes a ladder look used rather than drawn.
+      if (rng.chance(0.14)) continue;
+      box(g, wide + 0.08, 0.05, 0.05, w, 0, 0.25 + i * (len - 0.4) / (rungs - 1));
+    }
+    // Most ladders are leaning on something.
+    g.rotation.z = rng.chance(0.7) ? rng.range(-0.34, 0.34) : 0;
   },
 
   // --- vegetation and terrain --------------------------------------------
@@ -695,10 +792,18 @@ const BUILDERS: Partial<Record<PropKind, Builder>> = {
     awning.rotation.x = 0.22;
   },
   hay: (rng, g) => {
-    const m = material('cloth', 0x8a7a48, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
-    const bale = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.6, 10), m);
-    bale.rotation.z = Math.PI / 2;
-    bale.position.y = 0.4;
+    const m = material('cloth', 0x6f6238, rng.int(0, TEXTURE_VARIANTS - 1), SCENERY);
+    const r = rng.range(0.3, 0.46);
+    const len = rng.range(0.45, 0.8);
+    const bale = new THREE.Mesh(new THREE.CylinderGeometry(r, r * rng.range(0.92, 1.0), len, 10), m);
+    // Round bales lie on their side; a squarer one is stacked upright.
+    if (rng.chance(0.75)) {
+      bale.rotation.z = Math.PI / 2;
+      bale.rotation.y = rng.range(-0.3, 0.3);
+      bale.position.y = r;
+    } else {
+      bale.position.y = len / 2;
+    }
     bale.castShadow = true;
     g.add(bale);
   },

@@ -1,5 +1,34 @@
 # CHANGELOG
 
+## 0.9.0 — Props that differ from each other
+
+Thirty-seven of the sixty prop builders produced geometrically identical output
+on every call — same dimensions, same part counts, same everything. `scatter`
+rotates and scales each instance, and that is not enough: a rotated copy of an
+identical mesh still reads as the same object, so a yard of thirty barrels read
+as one barrel stamped thirty times. What breaks the pattern is the *silhouette*
+differing, because that is what the eye compares.
+
+The numerous ones now vary their own shape — barrels, baskets, fences, benches,
+tables, chairs, ladders, wheels, hay. Not just proportions: part counts too, and
+states. A cask has two hoops or four depending on its height. A ladder is missing
+a rung. A table has lost a leg, which is why it is out in the yard. A chair has
+been knocked over. Architecture was left alone: a house should not warp.
+
+Three faults the variation exposed, all visible only once the props stopped
+being identical:
+
+- **Fences floated.** A box tilts about its own centre, so a post standing
+  exactly on the ground lifts a corner clear of it the moment it leans — and a
+  fence hovering a centimetre above its own shadow is more noticeable than a
+  fence standing perfectly straight. Posts are sunk now, as real ones are. The
+  broken fence had the same fault and worse, since it leans up to 23°.
+- **A wheel lying flat read as a painted symbol.** Spokes make a cross, and on
+  the ground the eye takes the whole thing for a marking rather than an object.
+  They always lean now.
+- **Hay was the brightest thing in a night yard**, pulling the eye off the
+  character. Darkened.
+
 ## 0.8.0 — Surface relief on the things that fill the frame
 
 Stone and ground had normal maps. Metal, leather, cloth, wood, bone and skin did
