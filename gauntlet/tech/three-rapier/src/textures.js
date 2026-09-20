@@ -124,75 +124,83 @@ export function buildMaterialMaps(size, shade, aniso, normalStrength) {
 
 export function asphaltMaps(size, aniso) {
   return buildMaterialMaps(size, (u, v, o) => {
-    // aggregate stones
-    const w = worley(u, v, 42, 11);
-    const w2 = worley(u, v, 90, 77);
+    const w = worley(u, v, 46, 11);
+    const w2 = worley(u, v, 104, 77);
     const grain = fbm(u * 96, v * 96, 96, 4, 5);
-    const macro = fbm(u * 6, v * 6, 6, 4, 23);
-    const stone = smoothstep(0.55, 0.15, w) * 0.55 + smoothstep(0.6, 0.2, w2) * 0.25;
-    // slab joints every 0.25 uv (4 m at repeat 1 -> handled by uv repeat)
-    const jx = Math.abs(((u * 2) % 1) - 0.5) * 2, jz = Math.abs(((v * 2) % 1) - 0.5) * 2;
-    const joint = Math.max(smoothstep(0.965, 1.0, jx), smoothstep(0.965, 1.0, jz));
-    // cracks
+    const macro = fbm(u * 3, v * 3, 3, 5, 23);
+    const blot = fbm(u * 7, v * 7, 7, 4, 223);
+    const stone = smoothstep(0.58, 0.12, w) * 0.5 + smoothstep(0.62, 0.18, w2) * 0.22;
+    // slab joints: thin, irregular, low contrast
+    const wob = fbm(u * 12, v * 12, 12, 2, 77) * 0.012;
+    const jx = Math.abs(((u + wob) % 1) - 0.5) * 2, jz = Math.abs(((v + wob) % 1) - 0.5) * 2;
+    const joint = Math.max(smoothstep(0.988, 1.0, jx), smoothstep(0.988, 1.0, jz)) * (0.45 + 0.55 * blot);
     const cr = ridged(u * 5, v * 5, 5, 4, 91);
-    const crack = smoothstep(0.86, 0.985, cr) * (0.6 + 0.4 * macro);
-    let base = 0.088 + 0.052 * macro + 0.05 * grain + 0.055 * stone;
-    base = mix(base, 0.030, joint * 0.9);
-    base = mix(base, 0.024, crack * 0.85);
-    const tint = 0.015 * fbm(u * 3, v * 3, 3, 3, 400);
-    o.r = base + tint * 1.4; o.g = base + tint; o.b = base * 0.97 + tint * 0.5;
-    o.h = 0.5 + stone * 0.30 + grain * 0.10 - joint * 0.45 - crack * 0.35;
-    o.ro = clamp(0.94 - stone * 0.18 + grain * 0.05 - crack * 0.05, 0.35, 1);
+    const crack = smoothstep(0.90, 0.995, cr) * (0.5 + 0.5 * macro);
+    const oil = smoothstep(0.52, 0.94, fbm(u * 9, v * 9, 9, 4, 661));
+    let base = 0.052 + 0.040 * macro + 0.030 * grain + 0.042 * stone + 0.022 * blot;
+    base = mix(base, base * 0.55, joint * 0.8);
+    base = mix(base, base * 0.42, crack * 0.8);
+    base = mix(base, base * 0.40, oil * 0.85);
+    const tint = 0.010 * fbm(u * 2, v * 2, 2, 3, 400);
+    o.r = base + tint * 1.5; o.g = base + tint; o.b = base * 0.98 + tint * 0.4;
+    o.h = 0.5 + stone * 0.30 + grain * 0.12 - joint * 0.40 - crack * 0.35;
+    o.ro = clamp(0.93 - stone * 0.16 + grain * 0.07 - oil * 0.42 - blot * 0.10, 0.22, 1);
     o.me = 0;
-    o.ao = clamp(1 - joint * 0.55 - crack * 0.4 - smoothstep(0.45, 0.0, w) * 0.15, 0.25, 1);
-  }, aniso, 2.6);
+    o.ao = clamp(1 - joint * 0.5 - crack * 0.45 - smoothstep(0.42, 0.0, w) * 0.18, 0.22, 1);
+  }, aniso, 2.8);
 }
 
 export function polishedConcreteMaps(size, aniso) {
   return buildMaterialMaps(size, (u, v, o) => {
-    const macro = fbm(u * 4, v * 4, 4, 4, 17);
+    const macro = fbm(u * 2.5, v * 2.5, 2, 5, 17);
     const grain = fbm(u * 128, v * 128, 128, 3, 43);
-    const stain = smoothstep(0.35, 0.85, fbm(u * 7, v * 7, 7, 4, 301));
-    const w = worley(u, v, 64, 5);
-    const pit = smoothstep(0.22, 0.0, w);
-    // control joints every half
-    const jx = Math.abs(((u * 2) % 1) - 0.5) * 2, jz = Math.abs(((v * 2) % 1) - 0.5) * 2;
-    const joint = Math.max(smoothstep(0.978, 1.0, jx), smoothstep(0.978, 1.0, jz));
-    const scuff = smoothstep(0.55, 0.95, ridged(u * 14, v * 3, 14, 3, 707));
-    let base = 0.185 + 0.075 * macro + 0.035 * grain - 0.055 * stain - 0.05 * pit;
-    base = mix(base, 0.075, joint);
-    base = mix(base, base * 0.78, scuff * 0.5);
-    o.r = base * 1.03; o.g = base; o.b = base * 0.95;
-    o.h = 0.5 + grain * 0.06 - pit * 0.5 - joint * 0.5;
-    o.ro = clamp(0.30 + 0.30 * stain + 0.22 * pit + 0.30 * joint + 0.10 * grain + 0.18 * scuff, 0.14, 1);
+    const dirt = smoothstep(0.28, 0.92, fbm(u * 6, v * 6, 6, 5, 301) * 0.5 + 0.5);
+    const w = worley(u, v, 58, 5);
+    const pit = smoothstep(0.20, 0.0, w);
+    const wob = fbm(u * 10, v * 10, 10, 2, 177) * 0.01;
+    const jx = Math.abs(((u + wob) % 1) - 0.5) * 2, jz = Math.abs(((v + wob) % 1) - 0.5) * 2;
+    const joint = Math.max(smoothstep(0.990, 1.0, jx), smoothstep(0.990, 1.0, jz));
+    const track = smoothstep(0.58, 0.97, ridged(u * 11, v * 2.2, 11, 3, 707));
+    const spill = smoothstep(0.62, 0.96, fbm(u * 4, v * 4, 4, 4, 1301));
+    let base = 0.115 + 0.055 * macro + 0.026 * grain - 0.045 * dirt - 0.035 * pit;
+    base = mix(base, base * 0.52, joint);
+    base = mix(base, base * 0.55, track * 0.75);
+    base = mix(base, base * 0.35, spill * 0.9);
+    o.r = base * 1.04; o.g = base; o.b = base * 0.94;
+    o.h = 0.5 + grain * 0.08 - pit * 0.5 - joint * 0.5;
+    o.ro = clamp(0.24 + 0.34 * dirt + 0.26 * pit + 0.34 * joint + 0.12 * grain + 0.30 * track - 0.12 * spill, 0.10, 1);
     o.me = 0;
-    o.ao = clamp(1 - joint * 0.6 - pit * 0.5 - stain * 0.2, 0.3, 1);
-  }, aniso, 1.6);
+    o.ao = clamp(1 - joint * 0.55 - pit * 0.5 - dirt * 0.25 - track * 0.12, 0.25, 1);
+  }, aniso, 1.9);
 }
 
 export function wallConcreteMaps(size, aniso) {
   return buildMaterialMaps(size, (u, v, o) => {
-    const macro = fbm(u * 3, v * 3, 3, 4, 61);
-    const grain = fbm(u * 110, v * 110, 110, 3, 71);
-    const w = worley(u, v, 30, 9);
-    const pit = smoothstep(0.30, 0.0, w) * 0.8;
-    // formwork panel seams: horizontal every 0.25, vertical every 0.5
-    const sh = smoothstep(0.985, 1.0, Math.abs(((v * 4) % 1) - 0.5) * 2);
-    const sv = smoothstep(0.99, 1.0, Math.abs(((u * 2) % 1) - 0.5) * 2);
-    const seam = Math.max(sh, sv);
-    // tie holes
-    const th = smoothstep(0.10, 0.03, Math.hypot(((u * 4) % 1) - 0.5, ((v * 4) % 1) - 0.5));
-    // rain streaks from the top
-    const streak = smoothstep(0.5, 0.95, fbm(u * 40, v * 2.0, 40, 3, 133)) * smoothstep(0.0, 0.55, v);
-    let base = 0.30 + 0.10 * macro + 0.05 * grain - pit * 0.10 - seam * 0.12 - th * 0.22;
-    base = mix(base, base * 0.62, streak * 0.75);
-    const warm = 0.018 * macro;
-    o.r = base + warm; o.g = base + warm * 0.7; o.b = base * 0.965;
-    o.h = 0.5 + grain * 0.08 - pit * 0.55 - seam * 0.6 - th * 0.8;
-    o.ro = clamp(0.82 + 0.12 * grain - 0.06 * streak + 0.06 * pit, 0.5, 1);
+    const macro = fbm(u * 2, v * 2, 2, 5, 61);
+    const blot = fbm(u * 6, v * 6, 6, 5, 161);
+    const grain = fbm(u * 110, v * 110, 110, 4, 71);
+    const w = worley(u, v, 34, 9);
+    const pit = smoothstep(0.26, 0.0, w) * 0.85;
+    // formwork seams: one horizontal per tile, one vertical, thin
+    const sh = smoothstep(0.992, 1.0, Math.abs(((v * 2) % 1) - 0.5) * 2);
+    const sv = smoothstep(0.995, 1.0, Math.abs((u % 1) - 0.5) * 2);
+    const seam = Math.max(sh, sv * 0.7);
+    // sparse tie holes: only where the noise agrees, not a regular grid
+    const cellU = ((u * 2) % 1) - 0.5, cellV = ((v * 2) % 1) - 0.5;
+    const tieMask = smoothstep(0.55, 0.85, fbm(Math.floor(u * 2) * 3.1, Math.floor(v * 2) * 3.1, 8, 2, 909) * 0.5 + 0.5);
+    const th = smoothstep(0.055, 0.02, Math.hypot(cellU, cellV)) * tieMask;
+    const streak = smoothstep(0.42, 0.95, fbm(u * 34, v * 1.6, 34, 4, 133)) * smoothstep(0.02, 0.62, v);
+    const grime = smoothstep(0.30, 0.95, fbm(u * 3.2, v * 2.2, 4, 4, 1333) * 0.5 + 0.5);
+    let base = 0.175 + 0.085 * macro + 0.055 * blot + 0.035 * grain - pit * 0.075 - seam * 0.09 - th * 0.13;
+    base = mix(base, base * 0.52, streak * 0.85);
+    base = mix(base, base * 0.62, grime * 0.55);
+    const warm = 0.016 * macro + 0.012 * blot;
+    o.r = base + warm; o.g = base + warm * 0.62; o.b = base * 0.945;
+    o.h = 0.5 + grain * 0.10 - pit * 0.55 - seam * 0.6 - th * 0.75 + blot * 0.06;
+    o.ro = clamp(0.80 + 0.14 * grain - 0.10 * streak + 0.08 * pit + 0.06 * grime, 0.45, 1);
     o.me = 0;
-    o.ao = clamp(1 - seam * 0.5 - pit * 0.45 - th * 0.6 - streak * 0.2, 0.25, 1);
-  }, aniso, 2.2);
+    o.ao = clamp(1 - seam * 0.45 - pit * 0.45 - th * 0.55 - streak * 0.3 - grime * 0.22, 0.2, 1);
+  }, aniso, 2.6);
 }
 
 export function paintedMetalMaps(size, aniso, rgb) {
@@ -235,12 +243,12 @@ export function rustMaps(size, aniso) {
     // horizontal barrel ribs
     const rib = Math.pow(Math.max(0, Math.sin(v * Math.PI * 12)), 8);
     const t = clamp(heavy * 0.8 + flake * 0.45 + blot2 * 0.25, 0, 1);
-    let r = mix(0.30, 0.42, t) * (0.75 + 0.45 * grain + 0.3 * blot2);
-    let g = mix(0.135, 0.175, t) * (0.75 + 0.45 * grain + 0.3 * blot2);
-    let b = mix(0.075, 0.065, t) * (0.75 + 0.5 * grain);
+    let r = mix(0.200, 0.265, t) * (0.72 + 0.45 * grain + 0.28 * blot2);
+    let g = mix(0.092, 0.110, t) * (0.72 + 0.45 * grain + 0.28 * blot2);
+    let b = mix(0.050, 0.044, t) * (0.72 + 0.5 * grain);
     // remaining olive paint patches
     const paint = smoothstep(0.62, 0.30, blot) * (1 - flake * 0.8);
-    r = mix(r, 0.115, paint); g = mix(g, 0.145, paint); b = mix(b, 0.105, paint);
+    r = mix(r, 0.075, paint); g = mix(g, 0.098, paint); b = mix(b, 0.072, paint);
     o.r = r; o.g = g; o.b = b;
     o.h = 0.5 + grain * 0.10 + t * 0.22 - flake * 0.30 + rib * 0.30;
     o.ro = clamp(0.92 - paint * 0.30 + grain * 0.06 - t * 0.05, 0.28, 1);
@@ -267,11 +275,11 @@ export function woodMaps(size, aniso) {
     const kd = Math.hypot((u - kx) * 3.2, (pf - 0.5));
     const knot = smoothstep(0.30, 0.05, kd);
     const tone = 0.55 + 0.45 * h2(plankId, 1, 3);
-    let base = (0.17 + 0.13 * rings + 0.05 * fine) * (0.75 + 0.45 * tone);
+    let base = (0.105 + 0.145 * rings + 0.055 * fine) * (0.68 + 0.55 * tone);
     base = mix(base, base * 0.42, knot);
     const dirt = smoothstep(0.45, 0.9, fbm(u * 5, v * 5, 5, 4, 909));
     base *= (1 - dirt * 0.30);
-    o.r = base * 1.0; o.g = base * 0.68; o.b = base * 0.40;
+    o.r = base * 1.0; o.g = base * 0.615; o.b = base * 0.335;
     o.h = 0.5 + rings * 0.16 + fine * 0.10 - gap * 0.65 - knot * 0.25;
     o.ro = clamp(0.72 + 0.16 * rings + 0.08 * fine + dirt * 0.12 - knot * 0.12, 0.45, 1);
     o.me = 0;
@@ -417,9 +425,9 @@ export function macroVariation(size) {
   const data = new Uint8Array(size * size * 4);
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
     const u = x / size, v = y / size;
-    const a = fbm(u * 4, v * 4, 4, 5, 991) * 0.5 + 0.5;
-    const b = fbm(u * 9, v * 9, 9, 4, 1991) * 0.5 + 0.5;
-    const c = smoothstep(0.35, 0.8, fbm(u * 2.0, v * 2.0, 2, 3, 2991) * 0.5 + 0.5);
+    const a = fbm(u * 2, v * 2, 2, 6, 991) * 0.5 + 0.5;
+    const b = fbm(u * 5, v * 5, 5, 5, 1991) * 0.5 + 0.5;
+    const c = smoothstep(0.30, 0.85, fbm(u * 1.0, v * 1.0, 1, 4, 2991) * 0.5 + 0.5);
     const i = (y * size + x) * 4;
     data[i] = a * 255; data[i + 1] = b * 255; data[i + 2] = c * 255; data[i + 3] = 255;
   }
