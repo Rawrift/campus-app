@@ -149,17 +149,17 @@ export function buildVFX(scene, sunDir) {
   blast.particleTexture = puff;
   blast.emitter = new Vector3(0, 1, 0);
   blast.createSphereEmitter(2.2, 0.85);
-  blast.color1 = new Color4(0.72, 0.62, 0.48, 0.85);
-  blast.color2 = new Color4(0.34, 0.31, 0.29, 0.7);
+  blast.color1 = new Color4(0.62, 0.56, 0.47, 0.62);
+  blast.color2 = new Color4(0.30, 0.28, 0.27, 0.5);
   blast.colorDead = new Color4(0.2, 0.19, 0.19, 0);
-  blast.minSize = 1.0; blast.maxSize = 2.6;
-  blast.addSizeGradient(0, 0.7, 1.4);
-  blast.addSizeGradient(1.0, 3.2, 5.0);
-  blast.minLifeTime = 1.6; blast.maxLifeTime = 3.6;
+  blast.minSize = 0.6; blast.maxSize = 1.5;
+  blast.addSizeGradient(0, 0.5, 1.0);
+  blast.addSizeGradient(1.0, 1.9, 3.0);
+  blast.minLifeTime = 1.0; blast.maxLifeTime = 2.2;
   blast.emitRate = 0; blast.manualEmitCount = 0;
   blast.blendMode = ParticleSystem.BLENDMODE_STANDARD;
   blast.gravity = new Vector3(0, 0.9, 0);
-  blast.minEmitPower = 5; blast.maxEmitPower = 17;
+  blast.minEmitPower = 2.0; blast.maxEmitPower = 6.5;
   blast.updateSpeed = 0.02;
   blast.start();
   const flash = new ParticleSystem('flash', 150, scene);
@@ -169,19 +169,19 @@ export function buildVFX(scene, sunDir) {
   flash.color1 = new Color4(3.4, 2.1, 0.8, 1.0);
   flash.color2 = new Color4(2.2, 0.8, 0.18, 1.0);
   flash.colorDead = new Color4(0.5, 0.12, 0.02, 0);
-  flash.minSize = 0.7; flash.maxSize = 2.4;
+  flash.minSize = 0.5; flash.maxSize = 1.6;
   flash.minLifeTime = 0.22; flash.maxLifeTime = 0.6;
   flash.emitRate = 0; flash.manualEmitCount = 0;
   flash.blendMode = ParticleSystem.BLENDMODE_ADD;
   flash.gravity = new Vector3(0, 3, 0);
-  flash.minEmitPower = 6; flash.maxEmitPower = 20;
+  flash.minEmitPower = 3; flash.maxEmitPower = 9;
   flash.updateSpeed = 0.02;
   flash.start();
   V.blastAt = (pos) => {
     blast.emitter = pos.clone();
     flash.emitter = pos.clone();
-    blast.manualEmitCount = 150;
-    flash.manualEmitCount = 70;
+    blast.manualEmitCount = 110;
+    flash.manualEmitCount = 60;
   };
 
   // ---------- haces de luz volumetricos (falsos, aditivos) ----------
