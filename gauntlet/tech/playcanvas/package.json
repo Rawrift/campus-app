@@ -1,0 +1,13 @@
+{
+  "name": "gauntlet-playcanvas",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "playcanvas": "^2.22.2",
+    "vite": "^6.4.3"
+  }
+}

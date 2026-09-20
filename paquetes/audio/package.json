@@ -1,0 +1,17 @@
+{
+  "name": "@fragua/audio",
+  "version": "0.1.0",
+  "description": "Motor de audio procedural para el sandbox fisico 3D. Todo sintetizado en WebAudio, sin muestras.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./materiales": "./src/materiales.js"
+  },
+  "files": ["src", "LEEME.md"],
+  "scripts": {
+    "verificar": "node verificacion/render.mjs && node verificacion/graficos.mjs && node verificacion/informe.mjs"
+  },
+  "license": "MIT",
+  "private": true
+}

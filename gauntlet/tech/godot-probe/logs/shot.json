@@ -1,0 +1,32 @@
+{
+  "loadMs": 75,
+  "readyMs_fromNav": 1499,
+  "totalMs": 16964,
+  "env": {
+    "crossOriginIsolated": true,
+    "hasSAB": true,
+    "gpu": "object",
+    "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36"
+  },
+  "stats": {
+    "canvas": {
+      "w": 1280,
+      "h": 720,
+      "cssW": 1280,
+      "cssH": 720
+    },
+    "readyMs": 1106.7149999999674,
+    "firstFramesMs": 2443.659999999916,
+    "frames": 30,
+    "fps": 2,
+    "webgl": {
+      "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+      "renderer": "WebKit WebGL"
+    }
+  }
+}
+--- browser logs ---
+[console.log] Godot Engine v4.5.1.stable.official.f62fdbde1 - https://godotengine.org
+[console.log] OpenGL API OpenGL ES 3.0 (WebGL 2.0 (OpenGL ES 3.0 Chromium)) - Compatibility - Using Device: WebKit - WebKit WebGL
+[console.log] Build configuration: Emscripten 4.0.10, multi-threaded, no GDExtension support.
+[console.error] Blocking on the main thread is very dangerous, see https://emscripten.org/docs/porting/pthreads.html#blocking-on-the-main-browser-thread

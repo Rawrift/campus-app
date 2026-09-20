@@ -1,0 +1,24 @@
+# dependencias
+node_modules/
+.pnpm-store/
+.vite/
+.cache/
+
+# binarios y descargas de las sondas técnicas (no son fuente, se pueden regenerar)
+gauntlet/tech/godot-probe/dl/
+gauntlet/tech/godot-probe/bin/
+gauntlet/tech/godot-probe/web/
+gauntlet/tech/godot-probe/web-fwd/
+gauntlet/tech/godot-probe/.godot/
+gauntlet/tech/godot-probe/three/
+gauntlet/tech/*/dist/
+gauntlet/tech/*/.godot/
+
+# builds intermedios de los bancos de pruebas (las CAPTURAS sí se conservan)
+*.wasm.map
+*.tsbuildinfo
+
+# sistema
+.DS_Store
+*.log
+npm-debug.log*
