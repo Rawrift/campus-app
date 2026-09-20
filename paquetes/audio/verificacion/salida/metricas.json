@@ -1,0 +1,171 @@
+{
+  "generado": "2026-09-20T20:48:05.066Z",
+  "sr": 48000,
+  "casos": [
+    {
+      "id": "masa_005",
+      "grupo": "A · La masa cambia el timbre",
+      "etiqueta": "Impacto metal/hormigón · momento 5",
+      "metricas": {
+        "sr": 48000,
+        "duracion": 4,
+        "duracionActiva": 1.3443333333333334,
+        "picoDbfs": -4.436198102875812,
+        "picoLineal": 0.6000536680221558,
+        "rmsDbfs": -21.827224786632534,
+        "crestaDb": 17.39102668375672,
+        "centroideHz": 2153.496384348315,
+        "t40": 0.89,
+        "graveRel": -46.095329391207045,
+        "medioRel": -0.05664963700058597,
+        "agudoRel": -18.882408729026924,
+        "transitorios": 4,
+        "recorte": false,
+        "muestrasRecortadas": 0,
+        "rachaRecorteMax": 0
+      },
+      "estadisticas": {
+        "creadas": 1,
+        "fusionadas": 0,
+        "descartadas": 0,
+        "robadas": 0,
+        "pico": 1,
+        "activas": 1,
+        "escala": 1
+      },
+      "msRender": 559.7999999970198
+    },
+    {
+      "id": "masa_050",
+      "grupo": "A · La masa cambia el timbre",
+      "etiqueta": "Impacto metal/hormigón · momento 50",
+      "metricas": {
+        "sr": 48000,
+        "duracion": 4,
+        "duracionActiva": 1.9135,
+        "picoDbfs": -1.5792475679204596,
+        "picoLineal": 0.8337534070014954,
+        "rmsDbfs": -16.229704879426812,
+        "crestaDb": 14.650457311506353,
+        "centroideHz": 723.1211880072179,
+        "t40": 1.455,
+        "graveRel": -11.909116511520228,
+        "medioRel": -0.2934319945770312,
+        "agudoRel": -30.44215043453371,
+        "transitorios": 3,
+        "recorte": false,
+        "muestrasRecortadas": 0,
+        "rachaRecorteMax": 0
+      },
+      "estadisticas": {
+        "creadas": 1,
+        "fusionadas": 0,
+        "descartadas": 0,
+        "robadas": 0,
+        "pico": 1,
+        "activas": 1,
+        "escala": 1
+      },
+      "msRender": 278.1000000014901
+    },
+    {
+      "id": "masa_200",
+      "grupo": "A · La masa cambia el timbre",
+      "etiqueta": "Impacto metal/hormigón · momento 200",
+      "metricas": {
+        "sr": 48000,
+        "duracion": 4,
+        "duracionActiva": 2.388729166666667,
+        "picoDbfs": -1.40466709673135,
+        "picoLineal": 0.8506808280944824,
+        "rmsDbfs": -20.98435014854134,
+        "crestaDb": 19.579683051809987,
+        "centroideHz": 891.2386202441179,
+        "t40": 1.485,
+        "graveRel": -2.4387689650841855,
+        "medioRel": -3.6758411883093234,
+        "agudoRel": -31.456985741313144,
+        "transitorios": 7,
+        "recorte": false,
+        "muestrasRecortadas": 0,
+        "rachaRecorteMax": 0
+      },
+      "estadisticas": {
+        "creadas": 1,
+        "fusionadas": 0,
+        "descartadas": 0,
+        "robadas": 0,
+        "pico": 1,
+        "activas": 1,
+        "escala": 1
+      },
+      "msRender": 313.70000000298023
+    },
+    {
+      "id": "masa_800",
+      "grupo": "A · La masa cambia el timbre",
+      "etiqueta": "Impacto metal/hormigón · momento 800",
+      "metricas": {
+        "sr": 48000,
+        "duracion": 4,
+        "duracionActiva": 2.8941875,
+        "picoDbfs": -1.2312115817945855,
+        "picoLineal": 0.867839515209198,
+        "rmsDbfs": -14.295352204604255,
+        "crestaDb": 13.064140622809669,
+        "centroideHz": 314.1463403821131,
+        "t40": 2.4250000000000003,
+        "graveRel": -0.16028908175997109,
+        "medioRel": -14.408893618542338,
+        "agudoRel": -57.95658955949883,
+        "transitorios": 7,
+        "recorte": false,
+        "muestrasRecortadas": 0,
+        "rachaRecorteMax": 0
+      },
+      "estadisticas": {
+        "creadas": 1,
+        "fusionadas": 0,
+        "descartadas": 0,
+        "robadas": 0,
+        "pico": 1,
+        "activas": 1,
+        "escala": 1
+      },
+      "msRender": 329.69999999925494
+    },
+    {
+      "id": "masa_800_sin_limitador",
+      "grupo": "A · La masa cambia el timbre",
+      "etiqueta": "Impacto metal/hormigón · momento 800 · cadena maestra desnuda (diagnóstico)",
+      "metricas": {
+        "sr": 48000,
+        "duracion": 4,
+        "duracionActiva": 2.491604166666667,
+        "picoDbfs": -2.4681088428992255,
+        "picoLineal": 0.7526525855064392,
+        "rmsDbfs": -24.030616748008153,
+        "crestaDb": 21.562507905108927,
+        "centroideHz": 344.769879388526,
+        "t40": 1.69,
+        "graveRel": -0.24064096645416966,
+        "medioRel": -12.684035210403312,
+        "agudoRel": -58.169577908339704,
+        "transitorios": 7,
+        "recorte": false,
+        "muestrasRecortadas": 0,
+        "rachaRecorteMax": 0
+      },
+      "estadisticas": {
+        "creadas": 1,
+        "fusionadas": 0,
+        "descartadas": 0,
+        "robadas": 0,
+        "pico": 1,
+        "activas": 1,
+        "escala": 1
+      },
+      "msRender": 349.30000000074506
+    }
+  ]
+}

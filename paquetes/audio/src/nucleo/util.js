@@ -55,6 +55,13 @@ export function curvaGrano(cantidad = 0.6, n = 1024) {
  */
 export function golpe(ganancia, t0, pico, ataque, t60) {
   const p = ganancia.gain;
+  // El valor POR DEFECTO del parametro rige para todo instante anterior al primer evento
+  // programado. Un GainNode nace con gain=1, asi que una capa retardada (un repique a
+  // t0+80 ms, una astilla, un rebote) sonaria a ganancia UNIDAD desde que arranca su
+  // oscilador hasta que empieza su envolvente. Con veinte capas retardadas por impacto
+  // eso son veinte osciladores a tope sumandose en fase: es lo que hacia que un solo
+  // golpe pesado llegase a +20 dBFS y que el limitador bombease.
+  p.value = 0;
   const atk = Math.max(ataque, RAMPA_MIN);
   const picoSeguro = Math.max(pico, 1e-6);
   p.cancelScheduledValues(t0);
@@ -72,6 +79,13 @@ export function golpe(ganancia, t0, pico, ataque, t60) {
  */
 export function sobre(ganancia, t0, pico, ataque, meseta, caida) {
   const p = ganancia.gain;
+  // El valor POR DEFECTO del parametro rige para todo instante anterior al primer evento
+  // programado. Un GainNode nace con gain=1, asi que una capa retardada (un repique a
+  // t0+80 ms, una astilla, un rebote) sonaria a ganancia UNIDAD desde que arranca su
+  // oscilador hasta que empieza su envolvente. Con veinte capas retardadas por impacto
+  // eso son veinte osciladores a tope sumandose en fase: es lo que hacia que un solo
+  // golpe pesado llegase a +20 dBFS y que el limitador bombease.
+  p.value = 0;
   const atk = Math.max(ataque, RAMPA_MIN);
   const picoSeguro = Math.max(pico, 1e-6);
   p.cancelScheduledValues(t0);

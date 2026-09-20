@@ -71,6 +71,10 @@ export function sintetizarImpacto(motor, opciones = {}) {
     bus: opciones.bus || 'impactos',
   });
   let tFin = t0 + 0.05;
+  // Suma de los picos de las capas que atacan A LA VEZ en t0. Se usa al final para
+  // normalizar la voz: el pico de un impacto debe depender de la energia del golpe, no
+  // de cuantas capas haya querido apilar el sintetizador.
+  let picoCoherente = 0;
 
   // --- 1. Transitorio de contacto -----------------------------------------------------
   // Rafaga de ruido muy corta, limitada en banda por el tiempo de contacto. Es la "raya
@@ -94,7 +98,9 @@ export function sintetizarImpacto(motor, opciones = {}) {
     lp.frequency.setValueAtTime(fcExc, t0);
     lp.frequency.exponentialRampToValueAtTime(sujetar(fcExc * 0.22, 120, 16000), t0 + durT * 1.6);
 
-    const p = golpe(g, t0, nivel * (0.55 + 0.55 * par.ruido), 0.0012 / esc, durT);
+    const picoT = nivel * (0.55 + 0.55 * par.ruido);
+    picoCoherente += picoT;
+    const p = golpe(g, t0, picoT, 0.0012 / esc, durT);
     voz.fuente(src, p + 0.02);
     tFin = Math.max(tFin, p);
   }
@@ -130,8 +136,11 @@ export function sintetizarImpacto(motor, opciones = {}) {
 
     const g = ctx.createGain();
     osc.connect(g); g.connect(voz.entrada);
-    const p = golpe(g, t0, nivel * g0 * 0.55, 0.0018 / esc, t60i);
-    voz.fuente(osc, p + 0.02);
+    const picoM = nivel * g0 * 0.55;
+    picoCoherente += picoM;
+    const p = golpe(g, t0, picoM, 0.0018 / esc, t60i);
+    // Pre-arranque aleatorio: decorrelaciona la fase de los modos.
+    voz.fuenteEn(osc, t0 - R.azar() * 0.03, p + 0.02);
     tFin = Math.max(tFin, p);
   }
 
@@ -146,8 +155,9 @@ export function sintetizarImpacto(motor, opciones = {}) {
     osc.frequency.exponentialRampToValueAtTime(fg, t0 + 0.035 / esc);
     const g = ctx.createGain();
     osc.connect(g); g.connect(voz.entrada);
+    picoCoherente += gg;
     const p = golpe(g, t0, gg, 0.003 / esc, sujetar(t60 * 0.85, 0.05, 1.2));
-    voz.fuente(osc, p + 0.02);
+    voz.fuenteEn(osc, t0 - R.azar() * 0.02, p + 0.02);
     tFin = Math.max(tFin, p);
   }
 
@@ -158,9 +168,10 @@ export function sintetizarImpacto(motor, opciones = {}) {
     osc.type = 'sine'; osc.frequency.value = fs;
     const g = ctx.createGain();
     osc.connect(g); g.connect(voz.entrada);
-    const p = golpe(g, t0, nivel * 0.40 * par.grave * sujetar(tam - 1.1, 0, 1.6),
-      0.006 / esc, sujetar(t60 * 1.1, 0.08, 1.6));
-    voz.fuente(osc, p + 0.02);
+    const picoS = nivel * 0.40 * par.grave * sujetar(tam - 1.1, 0, 1.6);
+    picoCoherente += picoS;
+    const p = golpe(g, t0, picoS, 0.006 / esc, sujetar(t60 * 1.1, 0.08, 1.6));
+    voz.fuenteEn(osc, t0 - R.azar() * 0.02, p + 0.02);
     tFin = Math.max(tFin, p);
   }
 
@@ -171,13 +182,14 @@ export function sintetizarImpacto(motor, opciones = {}) {
     const src = R.fuente('grano', 1.6);
     const bp = ctx.createBiquadFilter();
     bp.type = 'bandpass'; bp.Q.value = 7 + 6 * par.chirrido;
-    const fA = sujetar(1700 * par.brillo / Math.pow(tam, 0.5), 400, 9000) * esc;
-    const fB = sujetar(fA * (2.3 + R.azar() * 1.2), 500, 13000);
+    const fA = sujetar(fcExc * 0.50, 300, 9000);
+    const fB = sujetar(fA * (1.8 + R.azar() * 0.9), 400, 13000);
     bp.frequency.setValueAtTime(fA, t0);
     bp.frequency.exponentialRampToValueAtTime(fB, t0 + dur * 0.45);
     bp.frequency.exponentialRampToValueAtTime(fA * 0.75, t0 + dur);
     const g = ctx.createGain();
     src.connect(bp); bp.connect(g); g.connect(voz.entrada);
+    picoCoherente += nivel * 0.30 * par.chirrido;
     const p = golpe(g, t0 + 0.0015, nivel * 0.30 * par.chirrido, 0.004 / esc, dur);
     voz.fuente(src, p + 0.02);
     tFin = Math.max(tFin, p);
@@ -189,6 +201,7 @@ export function sintetizarImpacto(motor, opciones = {}) {
     for (let k = 0; k < n; k++) {
       const dt = (R.azar() * 0.075 + 0.004) / esc;
       const f = sujetar((2200 + R.azar() * 6500) / Math.pow(tam, 0.35), 700, 15000) * esc;
+      if (f > fcExc * 2.2) continue;   // el contacto no puede excitar por encima de su banda
       const osc = ctx.createOscillator();
       osc.type = 'sine'; osc.frequency.value = f;
       const g = ctx.createGain();
@@ -208,7 +221,7 @@ export function sintetizarImpacto(motor, opciones = {}) {
     for (let k = 0; k < n; k++) {
       const dt = (0.012 + R.azar() * (0.05 + 0.13 * tam)) / esc;
       const f = f0 * (1 + R.azar() * 2.6) * (0.9 + R.azar() * 0.2);
-      if (f > 17000) continue;
+      if (f > Math.min(17000, fcExc * 1.8)) continue;
       const osc = ctx.createOscillator();
       osc.type = 'sine'; osc.frequency.value = f;
       const g = ctx.createGain();
@@ -237,7 +250,7 @@ export function sintetizarImpacto(motor, opciones = {}) {
       // El rebote tambien lleva su propio transitorio de contacto, mas apagado.
       const src = R.fuente('blanco', 1);
       const lp = ctx.createBiquadFilter();
-      lp.type = 'lowpass'; lp.frequency.value = fcExc * 0.5; lp.Q.value = 0.6;
+      lp.type = 'lowpass'; lp.frequency.value = fcExc * 0.32; lp.Q.value = 0.6;
       const g2 = ctx.createGain();
       src.connect(lp); lp.connect(g2); g2.connect(voz.entrada);
       const p2 = golpe(g2, t0 + dt, amp * 0.8, 0.0015 / esc, 0.018 / esc);
@@ -249,6 +262,14 @@ export function sintetizarImpacto(motor, opciones = {}) {
     }
   }
 
+  // Normalizacion de pico coherente. El objetivo es que el pico de la voz siga a `nivel`
+  // (que ya codifica el momento del impacto) y no al numero de capas apiladas. Solo
+  // atenua; nunca amplifica.
+  const objetivo = nivel * 1.35;
+  if (picoCoherente > objetivo) {
+    voz.ganancia.gain.value = sujetar(objetivo / picoCoherente, 0.12, 1);
+  }
+
   voz.fin = tFin;
-  return { voz, fin: tFin, f0, t60, fcExc, tam, masa, nivel, par };
+  return { voz, fin: tFin, f0, t60, fcExc, tam, masa, nivel, par, picoCoherente };
 }

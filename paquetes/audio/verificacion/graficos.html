@@ -1,0 +1,13 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Gráficos</title></head>
+<body><script type="module">
+import { dibujar } from './dibujo.js';
+import { decodificarWav, metricas } from './analisis.js';
+globalThis.generar = async (nombre, info) => {
+  const r = await fetch('./salida/' + nombre);
+  const bytes = new Uint8Array(await r.arrayBuffer());
+  const { canales, sr } = decodificarWav(bytes);
+  const m = info.metricas || metricas(canales, sr);
+  return dibujar(canales, sr, { ...info, metricas: m });
+};
+globalThis.graficosListo = true;
+</script></body></html>

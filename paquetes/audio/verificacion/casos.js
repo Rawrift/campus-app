@@ -29,6 +29,18 @@ export const CASOS = [
     },
   })),
 
+  // Diagnostico: el MISMO golpe con la cadena maestra desnuda. Sirve para distinguir lo
+  // que hace la sintesis de lo que hace el limitador (bombeo sobre los graves).
+  {
+    id: 'masa_800_sin_limitador', grupo: 'A · La masa cambia el timbre',
+    etiqueta: 'Impacto metal/hormigón · momento 800 · cadena maestra desnuda (diagnóstico)',
+    dur: 4.0, opcionesMotor: { limitador: false, volumen: 0.35 },
+    correr(a) {
+      a.escucha({ posicion: [0, 1.6, 0], orientacion: { frente: [0, 0, -1], arriba: [0, 1, 0] } });
+      a.impacto({ material: 'metal', materialB: 'hormigon', momento: 800, posicion: [0, 0, -3], cuando: 0.02 });
+    },
+  },
+
   // === 2. MATRIZ DE PARES DE MATERIALES =================================================
   ...[
     ['metal', 'hormigon', 'metal sobre hormigón · chirría y repica'],
@@ -39,6 +51,9 @@ export const CASOS = [
     ['hormigon', 'hormigon', 'hormigón sobre hormigón · mate y grave'],
     ['plastico', 'madera', 'plástico sobre madera'],
     ['grava', 'metal', 'grava sobre metal'],
+    ['metalSordo', 'piedra', 'metal sordo (bidón, hierro oxidado) sobre piedra'],
+    ['carton', 'piedra', 'cartón sobre piedra · casi sólo transitorio'],
+    ['tela', 'piedra', 'lona sobre piedra · muerto'],
   ].map(([a1, b1, txt]) => ({
     id: `par_${a1}_${b1}`,
     grupo: 'B · Matriz de pares de materiales (momento 120)',

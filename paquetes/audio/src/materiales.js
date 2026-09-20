@@ -25,15 +25,42 @@ export const MATERIALES = {
     ruido: 0.30, ruidoFc: 5200, ruidoQ: 0.9,
     repique: 0.75, astillas: 0.0, chirrido: 0.85, grave: 0.55,
   },
-  acero: null, // alias, se resuelve abajo
-  hormigon: {
-    nombre: 'hormigon',
+  piedra: {
+    nombre: 'piedra',
     f0: 190, modos: [1, 1.84, 2.72, 3.61, 5.10],
     ganancias: [1.0, 0.52, 0.30, 0.18, 0.10],
     t60: 0.115, resonancia: 0.30, dureza: 0.72, densidad: 2400,
     inarmonia: 0.55, tc: 0.00035,
     ruido: 0.95, ruidoFc: 1700, ruidoQ: 0.6,
     repique: 0.10, astillas: 0.18, chirrido: 0.35, grave: 0.95,
+  },
+  // Metal amortiguado: hierro oxidado, bidon lleno, chapa con contenido. Repica poco.
+  metalSordo: {
+    nombre: 'metalSordo',
+    f0: 330, modos: [1, 2.71, 5.12, 8.40],
+    ganancias: [1.0, 0.55, 0.30, 0.16],
+    t60: 0.42, resonancia: 0.55, dureza: 0.62, densidad: 7200,
+    inarmonia: 0.34, tc: 0.00022,
+    ruido: 0.55, ruidoFc: 2600, ruidoQ: 0.8,
+    repique: 0.35, astillas: 0.0, chirrido: 0.55, grave: 0.80,
+  },
+  carton: {
+    nombre: 'carton',
+    f0: 175, modos: [1, 2.1],
+    ganancias: [1.0, 0.16],
+    t60: 0.042, resonancia: 0.06, dureza: 0.06, densidad: 180,
+    inarmonia: 0.6, tc: 0.005,
+    ruido: 0.92, ruidoFc: 1250, ruidoQ: 0.45,
+    repique: 0.0, astillas: 0.0, chirrido: 0.12, grave: 0.55,
+  },
+  tela: {
+    nombre: 'tela',
+    f0: 118, modos: [1, 1.9],
+    ganancias: [1.0, 0.10],
+    t60: 0.030, resonancia: 0.03, dureza: 0.05, densidad: 300,
+    inarmonia: 0.7, tc: 0.008,
+    ruido: 1.0, ruidoFc: 900, ruidoQ: 0.35,
+    repique: 0.0, astillas: 0.0, chirrido: 0.20, grave: 0.40,
   },
   madera: {
     nombre: 'madera',
@@ -129,11 +156,18 @@ export const MATERIALES = {
 
 // Alias en espanol / sinonimos que el juego puede usar.
 const ALIAS = {
-  acero: 'metal', hierro: 'metal', aluminio: 'metal', chapa: 'metal',
-  cemento: 'hormigon', piedra: 'hormigon', roca: 'hormigon', ladrillo: 'hormigon',
-  cristal: 'vidrio', botella: 'vidrio',
+  // Identificadores de la tabla de materiales sistemicos del juego
+  // (juego/src/fisica/materiales.js). El juego pasa el id del material del cuerpo o su
+  // campo `timbre` indistintamente: ambos resuelven aqui sin traduccion.
+  hormigon: 'piedra', ladrillo: 'piedra', cemento: 'piedra', roca: 'piedra',
+  acero: 'metal', aluminio: 'metal', hierro: 'metal', chapa: 'metal',
+  hierroox: 'metalSordo', hierroOx: 'metalSordo', metalsordo: 'metalSordo',
+  gasolina: 'metalSordo', bidon: 'metalSordo',
+  contrachapado: 'madera',
+  hielo: 'vidrio', cristal: 'vidrio', botella: 'vidrio',
   caucho: 'goma', neumatico: 'goma',
-  pvc: 'plastico', polimero: 'plastico',
+  explosivo: 'plastico', pvc: 'plastico', polimero: 'plastico',
+  lona: 'tela',
   organico: 'carne', cuerpo: 'carne',
   arena: 'tierra', barro: 'tierra', suelo: 'tierra',
   gravilla: 'grava', piedras: 'grava',
@@ -141,11 +175,14 @@ const ALIAS = {
 };
 
 export function material(nombre) {
-  if (!nombre) return MATERIALES.hormigon;
-  const n = String(nombre).toLowerCase();
+  if (!nombre) return MATERIALES.piedra;
+  const bruto = String(nombre);
+  if (MATERIALES[bruto]) return MATERIALES[bruto];
+  if (ALIAS[bruto] && MATERIALES[ALIAS[bruto]]) return MATERIALES[ALIAS[bruto]];
+  const n = bruto.toLowerCase();
   if (MATERIALES[n]) return MATERIALES[n];
   if (ALIAS[n] && MATERIALES[ALIAS[n]]) return MATERIALES[ALIAS[n]];
-  return MATERIALES.hormigon;
+  return MATERIALES.piedra;
 }
 
 /**
@@ -156,29 +193,40 @@ export function material(nombre) {
 export const PARES = {
   // metal sobre hormigon: chirria y repica. Cola metalica larga, muchos microimpactos,
   // y un barrido de friccion en la banda 2-6 kHz.
-  'hormigon|metal': { chirrido: 1.25, repique: 1.35, t60: 1.05, brillo: 1.15, ruido: 1.2 },
+  'metal|piedra': { chirrido: 1.25, repique: 1.35, t60: 1.05, brillo: 1.15, ruido: 1.2 },
   // madera contra madera: seco, medio, nada de cola. El clasico "toc".
   'madera|madera': { t60: 0.55, brillo: 0.80, repique: 0.5, ruido: 0.75, grave: 0.9 },
   // vidrio contra cualquier cosa dura: se astilla.
-  'hormigon|vidrio': { astillas: 1.5, t60: 0.75, brillo: 1.10 },
+  'piedra|vidrio': { astillas: 1.5, t60: 0.75, brillo: 1.10 },
   'metal|vidrio': { astillas: 1.35, t60: 0.95, brillo: 1.25, repique: 1.2 },
   'vidrio|vidrio': { astillas: 1.8, t60: 1.05, brillo: 1.30, repique: 1.4 },
   'madera|vidrio': { astillas: 1.1, t60: 0.70, brillo: 0.95 },
   // goma: sordo. Absorbe todo lo que el otro material quisiera hacer sonar.
   'goma|metal': { t60: 0.22, brillo: 0.35, repique: 0.15, chirrido: 0.3, grave: 1.3 },
-  'goma|hormigon': { t60: 0.55, brillo: 0.40, ruido: 0.8, grave: 1.25 },
+  'goma|piedra': { t60: 0.55, brillo: 0.40, ruido: 0.8, grave: 1.25 },
   'goma|goma': { t60: 0.6, brillo: 0.30, grave: 1.2 },
   'goma|madera': { t60: 0.45, brillo: 0.45, grave: 1.15 },
   'goma|vidrio': { t60: 0.35, brillo: 0.5, astillas: 0.4 },
   // metal contra metal: repique brillante y largo, con batido entre modos.
   'metal|metal': { t60: 1.25, brillo: 1.30, repique: 1.5, chirrido: 0.9 },
   // madera sobre hormigon: golpe seco con cuerpo grave.
-  'hormigon|madera': { t60: 0.70, brillo: 0.85, grave: 1.15, ruido: 1.1 },
-  'hormigon|hormigon': { t60: 0.85, brillo: 0.75, ruido: 1.25, grave: 1.2, astillas: 1.2 },
+  'madera|piedra': { t60: 0.70, brillo: 0.85, grave: 1.15, ruido: 1.1 },
+  'piedra|piedra': { t60: 0.85, brillo: 0.75, ruido: 1.25, grave: 1.2, astillas: 1.2 },
   'madera|metal': { t60: 0.85, brillo: 1.05, repique: 0.9 },
   'carne|metal': { t60: 0.3, brillo: 0.5, grave: 1.3, ruido: 1.3 },
-  'carne|hormigon': { t60: 0.4, brillo: 0.4, grave: 1.35, ruido: 1.4 },
+  'carne|piedra': { t60: 0.4, brillo: 0.4, grave: 1.35, ruido: 1.4 },
   'grava|metal': { ruido: 1.35, repique: 1.3, brillo: 1.1, t60: 0.8 },
+  // Metal amortiguado: golpe de bidon. Cuerpo grave, cola corta, nada de repique.
+  'metalSordo|piedra': { t60: 0.75, brillo: 0.85, grave: 1.25, repique: 0.7, ruido: 1.15 },
+  'metalSordo|metalSordo': { t60: 0.9, brillo: 0.9, grave: 1.2, repique: 0.8 },
+  'metal|metalSordo': { t60: 1.0, brillo: 1.05, repique: 1.1 },
+  // Carton y tela: practicamente solo transitorio. Absorben al otro material.
+  'carton|piedra': { t60: 0.5, brillo: 0.5, ruido: 1.3, grave: 1.1 },
+  'carton|metal': { t60: 0.35, brillo: 0.6, ruido: 1.25, repique: 0.3 },
+  'carton|carton': { t60: 0.7, brillo: 0.55, ruido: 1.3 },
+  'piedra|tela': { t60: 0.35, brillo: 0.4, ruido: 1.2, grave: 1.15 },
+  'metal|tela': { t60: 0.30, brillo: 0.45, repique: 0.25, ruido: 1.1 },
+  'tela|tela': { t60: 0.5, brillo: 0.35, ruido: 1.25 },
 };
 
 /**

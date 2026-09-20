@@ -149,7 +149,7 @@ export class MotorAudio {
     // La transicion de la propia escala tambien es una rampa: cambiarla de golpe produce
     // un salto de tono audible en las voces continuas.
     rampaFrec(this.mezcla.filtroTiempo.frequency,
-      t, sujetar(20000 * Math.pow(nueva, 0.85), 700, 20000), 0.25);
+      t, sujetar(this.mezcla.fcMax * Math.pow(nueva, 0.85), 700, this.mezcla.fcMax), 0.25);
     rampa(this.mezcla.filtroTiempo.Q, t, nueva < 0.6 ? 1.1 : 0.5, 0.25);
     for (const [, c] of this._continuos) { if (c.reescalar) c.reescalar(); }
     if (this._manipulador) this._manipulador.reescalar();

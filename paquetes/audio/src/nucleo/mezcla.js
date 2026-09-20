@@ -30,9 +30,10 @@ export class Mezcla {
     // de que la reverberacion por convolucion no puede estirarse.
     this.filtroTiempo = ctx.createBiquadFilter();
     this.filtroTiempo.type = 'lowpass';
-    this.filtroTiempo.frequency.value = 20000;
+    // Tope a 0.375*sr: un paso bajo biquad demasiado cerca de Nyquist se comporta mal.
+    this.fcMax = Math.min(18000, ctx.sampleRate * 0.375);
+    this.filtroTiempo.frequency.value = this.fcMax;
     this.filtroTiempo.Q.value = 0.5;
-    this.filtroTiempo.connect(this.maestro);
 
     this.sumador = ctx.createGain();
     this.sumador.gain.value = 1;
@@ -56,14 +57,20 @@ export class Mezcla {
       this.saturador.curve = curvaTanh(1.25);
       this.saturador.oversample = '4x';
 
+      // El saturador va AL FINAL, despues del filtro de tiempo. Un biquad paso bajo con
+      // la frecuencia de corte cerca de Nyquist puede tener ganancia > 1 en su banda de
+      // paso; si el saturador estuviera antes, ese rebasamiento saldria a la salida y
+      // recortaria. Con el saturador al final, |tanh(x)| < 1 acota la salida SIEMPRE.
       this.sumador.connect(this.compresor);
       this.compresor.connect(this.limitador);
-      this.limitador.connect(this.saturador);
-      this.saturador.connect(this.filtroTiempo);
+      this.limitador.connect(this.filtroTiempo);
+      this.filtroTiempo.connect(this.saturador);
+      this.saturador.connect(this.maestro);
     } else {
       // Modo de verificacion: cadena maestra desnuda, para demostrar por comparacion
       // cuanto trabajo hace realmente el limitador.
       this.sumador.connect(this.filtroTiempo);
+      this.filtroTiempo.connect(this.maestro);
     }
 
     // --- Sub-buses -------------------------------------------------------------------

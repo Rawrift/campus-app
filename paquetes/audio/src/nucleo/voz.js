@@ -55,6 +55,22 @@ export function abrirVoz(motor, opciones = {}) {
       return nodo;
     },
 
+    /**
+     * Igual que `fuente`, pero arrancando el nodo ANTES del ataque. Como la ganancia de
+     * la capa ya vale cero hasta su envolvente, no se oye nada; lo que se consigue es que
+     * cada oscilador llegue a t0 con una FASE distinta. Sin esto, todos los modos de un
+     * impacto arrancan en fase 0 y sus amplitudes se suman de forma coherente en el
+     * ataque: el pico crece con el numero de modos en vez de con la energia del golpe.
+     */
+    fuenteEn(nodo, tInicio, tParada) {
+      fuentes.push({ nodo, tParada });
+      const ti = Math.max(0, tInicio);
+      if (typeof nodo.start === 'function') { try { nodo.start(ti); } catch { /* ya */ } }
+      if (typeof nodo.stop === 'function') nodo.stop(tParada);
+      if (tParada > voz.fin) voz.fin = tParada;
+      return nodo;
+    },
+
     /** Silencia la voz con un fundido corto (robo de voz). */
     silenciar() {
       if (!voz.viva) return;

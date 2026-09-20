@@ -94,11 +94,17 @@ export function envolvente(mono, sr, ms = 5) {
 export function transitorios(mono, sr) {
   const nfft = 1024, salto = 256;
   const e = espectrograma(mono, sr, { nfft, salto });
+  // Flujo espectral en dominio LOGARITMICO. En lineal, el primer frente de un impacto
+  // fuerte es tan grande que aplasta el umbral adaptativo y los transitorios posteriores
+  // (repique, rebotes, metralla) quedan por debajo: se contarian menos transitorios
+  // cuanto MAS denso es el suceso, que es justo lo contrario de lo que hay que medir.
   const flujo = new Float32Array(e.tramas);
   for (let t = 1; t < e.tramas; t++) {
     let s = 0;
     for (let b = 1; b < e.nBins; b++) {
-      const d = e.mags[t * e.nBins + b] - e.mags[(t - 1) * e.nBins + b];
+      const a = Math.log10(1 + e.mags[(t - 1) * e.nBins + b] * 1e4);
+      const c = Math.log10(1 + e.mags[t * e.nBins + b] * 1e4);
+      const d = c - a;
       if (d > 0) s += d;
     }
     flujo[t] = s;
@@ -115,7 +121,7 @@ export function transitorios(mono, sr) {
     const a = Math.max(0, t - V), b = Math.min(e.tramas, t + V);
     const loc = Array.prototype.slice.call(flujo.subarray(a, b)).sort((x, y) => x - y);
     const med = loc[Math.floor(loc.length / 2)];
-    const umbral = med * 2.4 + maxFlujo * 0.055;
+    const umbral = med * 1.7 + maxFlujo * 0.030;
     if (flujo[t] > umbral && flujo[t] >= flujo[t - 1] && flujo[t] > flujo[t + 1] && t - ultimo >= minSep) {
       picos.push((t * salto) / sr);
       ultimo = t;
