@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FRAGUA — caja de arena física</title>
+<style>
+  :root { --tinta:#f2efe9; --sombra:#0b0c0e; --acento:#ffb257; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--sombra); overflow:hidden;
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif; color:var(--tinta); }
+  #lienzo { display:block; width:100%; height:100%; cursor:crosshair; }
+
+  #hud { position:fixed; inset:0; pointer-events:none; user-select:none; }
+  .retic { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+           width:22px; height:22px; }
+  .retic::before, .retic::after { content:''; position:absolute; background:rgba(255,255,255,.75);
+           box-shadow:0 0 2px rgba(0,0,0,.9); transition:background .12s, transform .12s; }
+  .retic::before { left:50%; top:0; width:1.5px; height:22px; transform:translateX(-50%); }
+  .retic::after  { top:50%; left:0; height:1.5px; width:22px; transform:translateY(-50%); }
+  .retic .p { position:absolute; left:50%; top:50%; width:3px; height:3px; border-radius:50%;
+           background:rgba(255,255,255,.9); transform:translate(-50%,-50%); }
+  .retic.activa::before, .retic.activa::after { background:var(--acento); }
+  .retic.activa::before { height:14px; top:4px; }
+  .retic.activa::after  { width:14px; left:4px; }
+
+  .inf-izq { position:absolute; left:26px; bottom:22px; }
+  .herr { font-size:19px; font-weight:650; letter-spacing:.2px; text-shadow:0 2px 8px #000c; }
+  .sub  { font-size:13px; opacity:.62; margin-top:2px; }
+  .inf-der { position:absolute; right:26px; bottom:22px; text-align:right;
+             font-variant-numeric:tabular-nums; font-size:13px; opacity:.55; }
+  .inf-der b { font-size:16px; opacity:.95; font-weight:650; }
+  .lin { margin-top:2px; }
+
+  .objetivo { position:absolute; left:50%; top:calc(50% + 34px); transform:translateX(-50%);
+              font-size:13.5px; letter-spacing:.2px; opacity:0; transition:opacity .15s;
+              text-shadow:0 2px 10px #000d; white-space:nowrap; }
+  .aviso { position:absolute; left:50%; top:56px; transform:translateX(-50%);
+           background:#0f1114d9; border:1px solid #ffffff1f; border-radius:9px;
+           padding:9px 18px; font-size:14px; opacity:0; transition:opacity .25s;
+           backdrop-filter:blur(8px); }
+
+  #carga { position:fixed; inset:0; display:grid; place-content:center; gap:14px;
+           background:radial-gradient(120% 90% at 50% 40%, #1b1d22 0%, #0b0c0e 70%); z-index:10; }
+  #carga h1 { margin:0; font-size:44px; font-weight:800; letter-spacing:8px; text-align:center; }
+  #carga p { margin:0; text-align:center; opacity:.5; font-size:14px; letter-spacing:2px; }
+  .barra { width:260px; height:2px; background:#ffffff1a; border-radius:2px; overflow:hidden; margin:0 auto; }
+  .barra i { display:block; height:100%; width:38%; background:var(--acento);
+             animation:desliza 1.15s ease-in-out infinite; }
+  @keyframes desliza { 0%{transform:translateX(-100%)} 100%{transform:translateX(360%)} }
+  .err { color:#ff8d7a; font-family:ui-monospace,monospace; font-size:13px; max-width:560px; text-align:center; }
+
+  .ayuda { position:absolute; left:26px; top:22px; font-size:12.5px; line-height:1.85;
+           opacity:.42; letter-spacing:.2px; }
+  .ayuda b { font-weight:650; opacity:.9; }
+</style>
+</head>
+<body>
+<canvas id="lienzo"></canvas>
+<div id="hud"></div>
+<div class="ayuda">
+  <b>WASD</b> moverse · <b>Shift</b> correr · <b>Espacio</b> saltar · <b>V</b> volar<br>
+  <b>Clic izq</b> agarrar y lanzar · <b>Clic der</b> congelar · <b>R</b> descongelar todo<br>
+  <b>Rueda</b> acercar/alejar · <b>E</b> + ratón rotar · <b>T</b> cámara lenta<br>
+  <b>G</b> caja · <b>B</b> bidón de gasolina · <b>N</b> bola de acero · <b>H</b> ocultar interfaz
+</div>
+<div id="carga">
+  <h1>FRAGUA</h1>
+  <p>CAJA DE ARENA FÍSICA</p>
+  <div class="barra"><i></i></div>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
