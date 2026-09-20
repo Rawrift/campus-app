@@ -125,7 +125,7 @@ export function buildVFX(scene, sunDir) {
     sp.color2 = new Color4(2.4, 0.85, 0.18, 1.0);
     sp.colorDead = new Color4(0.7, 0.16, 0.02, 0);
     sp.minSize = 0.03; sp.maxSize = 0.13;
-    sp.minScaleY = 1.0; sp.maxScaleY = 3.6;
+    sp.minScaleY = 1.0; sp.maxScaleY = 2.4;
     sp.minLifeTime = 0.35; sp.maxLifeTime = 1.15;
     sp.emitRate = 0;
     sp.manualEmitCount = 0;
@@ -139,6 +139,7 @@ export function buildVFX(scene, sunDir) {
   }
   let sparkIdx = 0;
   V.burst = (pos, count) => {
+    if (!pos || !isFinite(pos.x) || !isFinite(pos.y) || !isFinite(pos.z)) return;
     const sp = V.sparks[sparkIdx++ % V.sparks.length];
     sp.emitter = pos.clone ? pos.clone() : new Vector3(pos.x, pos.y, pos.z);
     sp.manualEmitCount = count;
@@ -178,6 +179,7 @@ export function buildVFX(scene, sunDir) {
   flash.updateSpeed = 0.02;
   flash.start();
   V.blastAt = (pos) => {
+    if (!pos || !isFinite(pos.x) || !isFinite(pos.y) || !isFinite(pos.z)) return;
     blast.emitter = pos.clone();
     flash.emitter = pos.clone();
     blast.manualEmitCount = 110;

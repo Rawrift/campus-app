@@ -86,6 +86,38 @@ export class PropWorld {
     return n + this.singles.length;
   }
 
+  /** Salvaguarda numerica: limita velocidades y retira cuerpos con NaN. */
+  sanitize(maxSpeed = 42) {
+    const v = new Vector3(), p2 = new Vector3();
+    const zero = new Vector3(0, 0, 0);
+    for (const b of this.batches) {
+      for (let i = 0; i < b.count; i++) {
+        b.body.getLinearVelocityToRef(v, i);
+        const l2 = v.lengthSquared();
+        if (!isFinite(l2)) {
+          b.body.setLinearVelocity(zero, i); b.body.setAngularVelocity(zero, i);
+        } else if (l2 > maxSpeed * maxSpeed) {
+          v.scaleInPlace(maxSpeed / Math.sqrt(l2)); b.body.setLinearVelocity(v, i);
+        }
+      }
+    }
+    for (const s of this.singles) {
+      if (!s.body || s.body._isDisposed || s.dead) continue;
+      const p = s.mesh.position;
+      if (!isFinite(p.x) || !isFinite(p.y) || !isFinite(p.z)) {
+        s.dead = true;
+        try { s.body.setMotionType(PhysicsMotionType.STATIC); } catch (e) {}
+        s.mesh.setEnabled(false);
+        p.set(0, -400, 0);
+        continue;
+      }
+      s.body.getLinearVelocityToRef(v);
+      const l2 = v.lengthSquared();
+      if (!isFinite(l2)) { s.body.setLinearVelocity(Vector3.ZeroReadOnly.clone()); continue; }
+      if (l2 > maxSpeed * maxSpeed) { v.scaleInPlace(maxSpeed / Math.sqrt(l2)); s.body.setLinearVelocity(v); }
+    }
+  }
+
   countActive(threshold = 0.09) {
     const v = new Vector3();
     let act = 0;
@@ -96,7 +128,7 @@ export class PropWorld {
       }
     }
     for (const s of this.singles) {
-      if (!s.body || s.body._isDisposed) continue;
+      if (!s.body || s.body._isDisposed || s.dead) continue;
       s.body.getLinearVelocityToRef(v);
       if (v.lengthSquared() > threshold * threshold) act++;
     }
@@ -112,7 +144,7 @@ export class PropWorld {
         b.body.getObjectCenterWorldToRef(p, i);
         const dx = p.x - center.x, dy = p.y - center.y, dz = p.z - center.z;
         const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (d > radius) continue;
+        if (!isFinite(d) || d > radius) continue;
         const fall = 1 - d / radius;
         const mag0 = forceN * fall * fall * dt;
         const m = this.spec[b.kind].mass;

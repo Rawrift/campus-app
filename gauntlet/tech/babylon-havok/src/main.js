@@ -238,6 +238,7 @@ async function boot() {
   const impactWatch = [];
   scene.onBeforeRenderObservable.add(() => {
     sky.position.copyFrom(camera.globalPosition);
+    PW.sanitize();
   });
 
   window.__BENCH = {

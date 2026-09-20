@@ -92,10 +92,10 @@ export function spawnRagdoll(scene, protos, ox, oy, oz, yaw, sink) {
       mass, inertia: mp.inertia ? mp.inertia.scale(k) : undefined,
       centerOfMass: mp.centerOfMass, inertiaOrientation: mp.inertiaOrientation,
     });
-    body.setLinearDamping(0.06);
-    body.setAngularDamping(0.28);
+    body.setLinearDamping(0.12);
+    body.setAngularDamping(0.45);
     bodies.push({ body, mesh: inst, mass });
-    if (sink) sink.push({ body, mesh: inst, mass });
+    if (sink) sink.push({ body, mesh: inst, mass, soft: true });
   }
   const joints = [];
   for (const [a, b, pa, pb, ax, pax, limits] of JOINTS) {
