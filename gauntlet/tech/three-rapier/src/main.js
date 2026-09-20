@@ -5,10 +5,48 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import { buildScene } from './scene.js';
 import { PhysWorld } from './physics.js';
 import { makeDust, makeSmoke, Sparks, Blast, Shockwave } from './vfx.js';
+
+/* ------------------------------------------------------ final colour grade */
+const GradeShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    uContrast: { value: 1.30 },
+    uSat: { value: 1.05 },
+    uVig: { value: 0.50 },
+    uTexel: { value: new THREE.Vector2(1 / 1280, 1 / 720) },
+    uShadowTint: { value: new THREE.Vector3(-0.004, 0.002, 0.014) },
+    uHiTint: { value: new THREE.Vector3(0.016, 0.006, -0.012) },
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);} `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform float uContrast; uniform float uSat; uniform float uVig;
+    uniform vec3 uShadowTint; uniform vec3 uHiTint; uniform vec2 uTexel;
+    varying vec2 vUv;
+    void main(){
+      vec3 c = texture2D(tDiffuse, vUv).rgb;
+      // cheap directional edge softening (1 extra tap pair) to take the worst aliasing off
+      vec3 n = texture2D(tDiffuse, vUv + uTexel * vec2( 0.6, -0.6)).rgb;
+      vec3 m = texture2D(tDiffuse, vUv + uTexel * vec2(-0.6,  0.6)).rgb;
+      float edge = clamp(length(n - m) * 2.4, 0.0, 1.0);
+      c = mix(c, (c + n + m) / 3.0, edge * 0.85);
+      float l = dot(c, vec3(0.2126,0.7152,0.0722));
+      // split tone: cool shadows, warm highlights
+      c += uShadowTint * (1.0 - smoothstep(0.0, 0.45, l));
+      c += uHiTint * smoothstep(0.42, 1.0, l);
+      // filmic S curve around a 0.46 pivot, keeps blacks dense
+      c = clamp((c - 0.46) * uContrast + 0.46, 0.0, 1.4);
+      c = c * c * (3.0 - 2.0 * c) * 0.22 + c * 0.78;
+      l = dot(c, vec3(0.2126,0.7152,0.0722));
+      c = mix(vec3(l), c, uSat);
+      vec2 d = vUv - 0.5;
+      float v = 1.0 - uVig * dot(d, d) * 1.85;
+      c *= v;
+      gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+    }`,
+};
 
 const CAMS = [
   { p: [34, 12, 34], t: [0, 4, 0] },
@@ -21,7 +59,7 @@ const CAMS = [
 
 let renderer, composer, camera, scene, phys, sceneData;
 let dust, smoke, sparks, blast, shock, fxaaPass, bloomPass;
-let stats = { n: 0, sum: 0, frames: [] };
+let stats = { n: 0, sum: 0, cpu: 0, frames: [], at: 0 };
 let lastT = 0, elapsed = 0;
 let readyResolve;
 const readyPromise = new Promise((r) => { readyResolve = r; });
@@ -31,16 +69,19 @@ window.__BENCH = {
   loadTimeMs: 0,
   setCamera(i) { applyCamera(i | 0); },
   phase(name) { return runPhase(String(name)); },
-  resetStats() { stats.n = 0; stats.sum = 0; stats.frames.length = 0; renderer.info.reset(); },
+  resetStats() { stats.n = 0; stats.sum = 0; stats.cpu = 0; stats.frames.length = 0; stats.at = performance.now(); renderer.info.reset(); },
   stats() {
     const f = stats.frames.slice().sort((a, b) => a - b);
-    const p95 = f.length ? f[Math.min(f.length - 1, Math.floor(f.length * 0.95))] : 0;
-    const avg = stats.n ? stats.sum / stats.n : 0;
+    const p95 = f.length ? f[Math.min(f.length - 1, Math.floor(f.length * 0.95))] : Math.max(1, performance.now() - stats.at);
+    // if no frame completed inside the window, report the window itself as a lower bound
+    // instead of a misleading 0
+    const avg = stats.n ? stats.sum / stats.n : Math.max(1, performance.now() - stats.at);
     const mem = (performance.memory && performance.memory.usedJSHeapSize) ? performance.memory.usedJSHeapSize / 1e6 : 0;
     return {
       fps: avg > 0 ? 1000 / avg : 0,
       frameMs: avg,
       p95FrameMs: p95,
+      cpuFrameMs: stats.n ? stats.cpu / stats.n : lastCpuMs,
       drawCalls: lastDraw.calls,
       triangles: lastDraw.tris,
       programs: renderer.info.programs ? renderer.info.programs.length : 0,
@@ -51,6 +92,7 @@ window.__BENCH = {
   },
 };
 const lastDraw = { calls: 0, tris: 0 };
+let lastCpuMs = 0;
 
 function applyCamera(i) {
   const c = CAMS[Math.max(0, Math.min(5, i))];
@@ -108,7 +150,7 @@ function doExplosion(x, y, z, power) {
   sparks.emit(x, y + 0.5, z, 1.4, 150);
   shock.fire(x, Math.max(0.12, y - 0.75), z);
   flash.position.set(x, y + 1.2, z);
-  flash.intensity = 5200 * p;
+  flash.intensity = 1500 * p;
 }
 
 async function runPhase(name) {
@@ -150,7 +192,7 @@ async function boot() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.55;
+  renderer.toneMappingExposure = 0.48;
   renderer.info.autoReset = false;
 
   sceneData = buildScene(renderer);
@@ -166,13 +208,13 @@ async function boot() {
 
   /* ---- VFX ---- */
   const probe = makeLightProbe(sceneData.sunDir, sceneData.interiorLights);
-  dust = makeDust(900, sceneData.sprites.dot, probe);
+  dust = makeDust(480, sceneData.sprites.dot, probe);
   scene.add(dust);
-  smoke = makeSmoke(230, sceneData.sprites.smoke, { x: 15.6, y: 1.0, z: -6.2 }, 0xffe3bb);
+  smoke = makeSmoke(150, sceneData.sprites.smoke, { x: 15.6, y: 1.0, z: -6.2 }, 0xffe3bb);
   scene.add(smoke);
-  sparks = new Sparks(520, sceneData.sprites.dot);
+  sparks = new Sparks(360, sceneData.sprites.dot);
   scene.add(sparks.points);
-  blast = new Blast(700, sceneData.sprites.smoke);
+  blast = new Blast(420, sceneData.sprites.smoke);
   scene.add(blast.points);
   shock = new Shockwave(scene);
 
@@ -187,7 +229,7 @@ async function boot() {
     scene.add(drum);
     const ember = new THREE.Mesh(
       new THREE.CylinderGeometry(0.28, 0.28, 0.06, 16, 1),
-      new THREE.MeshStandardMaterial({ color: 0x220a02, emissive: new THREE.Color(0xff5a12), emissiveIntensity: 11, roughness: 0.8 })
+      new THREE.MeshStandardMaterial({ color: 0x220a02, emissive: new THREE.Color(0xff5a12), emissiveIntensity: 5, roughness: 0.8 })
     );
     ember.position.set(15.6, 0.93, -6.2);
     scene.add(ember);
@@ -214,11 +256,11 @@ async function boot() {
   composer.setPixelRatio(1);
   composer.setSize(window.innerWidth, window.innerHeight);
   composer.addPass(new RenderPass(scene, camera));
-  bloomPass = new UnrealBloomPass(new THREE.Vector2(640, 360), 0.42, 0.75, 0.95);
+  bloomPass = new UnrealBloomPass(new THREE.Vector2(400, 225), 0.26, 0.58, 2.30);
   composer.addPass(bloomPass);
   composer.addPass(new OutputPass());
-  fxaaPass = new ShaderPass(FXAAShader);
-  fxaaPass.material.uniforms.resolution.value.set(1 / window.innerWidth, 1 / window.innerHeight);
+  fxaaPass = new ShaderPass(GradeShader);
+  fxaaPass.material.uniforms.uTexel.value.set(1 / window.innerWidth, 1 / window.innerHeight);
   composer.addPass(fxaaPass);
 
   // compile everything up front so the first measured frames are not stalls
@@ -230,6 +272,7 @@ async function boot() {
   lastT = performance.now();
   requestAnimationFrame(loop);
 
+  window.__DBG = { THREE, renderer, composer, scene, camera, sceneData, phys, dust, smoke, sparks, blast };
   window.__BENCH.loadTimeMs = performance.now();
   window.__BENCH.counts = Object.assign({}, sceneData.counts, {
     dynamicBodies: phys.dynamicCount, chainLinks: phys.chainLinks, ragdolls: phys.ragdollCount,
@@ -241,15 +284,17 @@ function onResize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   composer.setSize(w, h);
+  if (fxaaPass) fxaaPass.material.uniforms.uTexel.value.set(1 / w, 1 / h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  if (fxaaPass) fxaaPass.material.uniforms.resolution.value.set(1 / w, 1 / h);
+
 }
 
 function loop() {
   requestAnimationFrame(loop);
   const now = performance.now();
-  let dt = (now - lastT) / 1000;
+  const wall = now - lastT;
+  let dt = wall / 1000;
   lastT = now;
   if (dt > 0.3) dt = 0.3;
   elapsed += dt;
@@ -266,16 +311,17 @@ function loop() {
   sparks.update(dt);
   blast.update(dt);
   shock.update(dt);
-  if (flash.intensity > 0) flash.intensity = Math.max(0, flash.intensity - dt * 9000);
-  if (sceneData.fireLight) sceneData.fireLight.intensity = 46 + Math.sin(elapsed * 11.3) * 9 + Math.sin(elapsed * 4.1) * 6;
+  if (flash.intensity > 0) flash.intensity = Math.max(0, flash.intensity - dt * 2600);
+  if (sceneData.fireLight) sceneData.fireLight.intensity = 24 + Math.sin(elapsed * 11.3) * 5 + Math.sin(elapsed * 4.1) * 3;
 
   renderer.info.reset();
   composer.render();
   lastDraw.calls = renderer.info.render.calls;
   lastDraw.tris = renderer.info.render.triangles;
 
-  const ft = performance.now() - now;
-  stats.n++; stats.sum += ft;
+  const ft = wall;                 // wall-clock interval between presented frames
+  lastCpuMs = performance.now() - now;
+  stats.n++; stats.sum += ft; stats.cpu += lastCpuMs;
   if (stats.frames.length < 4000) stats.frames.push(ft);
 }
 

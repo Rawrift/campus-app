@@ -6,8 +6,8 @@
 //    armonicos esfericos calculados a partir de los datos float HDR (difusa).
 // ---------------------------------------------------------------------------
 import {
-  Effect, ShaderMaterial, MeshBuilder, RawCubeTexture, RawTexture, Texture,
-  Constants, Vector3, Color3,
+  Effect, ShaderMaterial, StandardMaterial, MeshBuilder, RawCubeTexture, RawTexture, Texture,
+  Constants, Vector3, Vector4, Color3,
 } from '@babylonjs/core';
 import { CubeMapToSphericalPolynomialTools } from '@babylonjs/core/Misc/HighDynamicRange/cubemapToSphericalPolynomial.js';
 import { fbm, clamp01, smoothstep, lerp } from './noise.js';
@@ -22,7 +22,7 @@ export function makeCloudField() {
       const u = (x / n) * 8, v = (y / n) * 8;
       const w = fbm(u * 0.6, v * 0.6, 8, 991, 4) * 1.5;
       let c = fbm(u + w, v + w, 8, 401, 6, 0.55);
-      c = clamp01((c - 0.36) * 2.35);
+      c = clamp01((c - 0.47) * 2.15);
       f[y * n + x] = c;
     }
   }
@@ -55,10 +55,10 @@ function sampleField(field, x, y) {
   return lerp(lerp(a, b, tx), lerp(c, d, tx), ty);
 }
 
-const ZEN = [0.115, 0.235, 0.560];
-const HOR = [0.855, 0.790, 0.700];
+const ZEN = [0.072, 0.165, 0.430];
+const HOR = [0.560, 0.545, 0.530];
 const GND = [0.085, 0.080, 0.072];
-const SUNC = [1.90, 1.05, 0.52];
+const SUNC = [1.70, 0.92, 0.44];
 
 // Radiancia lineal HDR del cielo para una direccion normalizada.
 export function skyRadiance(dx, dy, dz, sun, field, out) {
@@ -80,17 +80,19 @@ export function skyRadiance(dx, dy, dz, sun, field, out) {
     const cover = raw * smoothstep(0.0, 0.30, dy);
     if (cover > 0.001) {
       const lit = clamp01(0.30 + raw * 0.9 + c4 * 0.6);
-      const cr = lerp(0.34, 1.48, lit) + SUNC[0] * c4 * 0.30;
-      const cg = lerp(0.36, 1.40, lit) + SUNC[1] * c4 * 0.30;
-      const cb = lerp(0.44, 1.32, lit) + SUNC[2] * c4 * 0.30;
-      const m = clamp01(cover * 0.92);
+      const cr = lerp(0.215, 0.92, lit) + SUNC[0] * c4 * 0.26;
+      const cg = lerp(0.228, 0.885, lit) + SUNC[1] * c4 * 0.26;
+      const cb = lerp(0.275, 0.855, lit) + SUNC[2] * c4 * 0.26;
+      const m = clamp01(cover * 0.80);
       r = lerp(r, cr, m); gg = lerp(gg, cg, m); b = lerp(b, cb, m);
     }
   }
 
   // disco solar
-  const disc = smoothstep(0.99955, 0.99982, cosT);
-  if (disc > 0) { r += 42 * disc; gg += 30 * disc; b += 19 * disc; }
+  const disc = smoothstep(0.99855, 0.99955, cosT);
+  if (disc > 0) { r += 34 * disc; gg += 25 * disc; b += 16 * disc; }
+  const halo = Math.pow(Math.max(cosT, 0), 260) * 2.2;
+  r += 2.4 * halo; gg += 1.7 * halo; b += 1.0 * halo;
 
   // por debajo del horizonte: suelo/bruma
   if (dy < 0.0) {
@@ -113,9 +115,10 @@ function faceDir(face, s, t, o) {
   o[0] *= l; o[1] *= l; o[2] *= l;
 }
 
-const knee = (c) => (c < 0.75 ? c : 0.75 + (1 - Math.exp(-(c - 0.75) * 1.7)) * 0.25);
+// codificacion reinhard invertible: e = c/(1+0.5c)  ->  c = e/(1-0.5e)
+const knee = (c) => c / (1 + 0.5 * c);
 
-export function buildEnvironment(scene, sunDir, field, size = 96, shSize = 48) {
+export function buildEnvironment(scene, sunDir, field, size = 320, shSize = 48) {
   const d = [0, 0, 0], rad = [0, 0, 0];
   // ---- cubemap RGBA8 para reflexiones especulares ----
   const faces = [];
@@ -136,10 +139,15 @@ export function buildEnvironment(scene, sunDir, field, size = 96, shSize = 48) {
     }
     faces.push(data);
   }
-  const cube = new RawCubeTexture(scene, faces, size, Constants.TEXTUREFORMAT_RGBA,
-    Constants.TEXTURETYPE_UNSIGNED_BYTE, true, false, Texture.TRILINEAR_SAMPLINGMODE);
-  cube.name = 'procEnv';
-  cube.gammaSpace = true;
+  const mkCube = (n) => {
+    const c = new RawCubeTexture(scene, faces, size, Constants.TEXTUREFORMAT_RGBA,
+      Constants.TEXTURETYPE_UNSIGNED_BYTE, true, false, Texture.TRILINEAR_SAMPLINGMODE);
+    c.name = n; c.gammaSpace = true; return c;
+  };
+  const cube = mkCube('procEnv');
+  const skyCube = mkCube('procSky');
+  skyCube.coordinatesMode = Texture.SKYBOX_MODE;
+  skyCube.level = 1.05;
 
   // ---- armonicos esfericos a partir de datos float HDR reales ----
   const fFaces = {};
@@ -162,66 +170,19 @@ export function buildEnvironment(scene, sunDir, field, size = 96, shSize = 48) {
     size: shSize, ...fFaces, format: 5, type: 1, gammaSpace: false,
   });
   if (sp) cube.sphericalPolynomial = sp;
-  return cube;
+  return { cube, skyCube };
 }
 
-const SKY_VS = `
-precision highp float;
-attribute vec3 position;
-uniform mat4 worldViewProjection;
-varying vec3 vDir;
-void main(void) {
-  vDir = position;
-  gl_Position = worldViewProjection * vec4(position, 1.0);
-}`;
-
-const SKY_FS = `
-precision highp float;
-varying vec3 vDir;
-uniform vec3 sunDir;
-uniform sampler2D clouds;
-const vec3 ZEN = vec3(${ZEN.join(',')});
-const vec3 HOR = vec3(${HOR.join(',')});
-const vec3 GND = vec3(${GND.join(',')});
-const vec3 SUNC = vec3(${SUNC.join(',')});
-void main(void) {
-  vec3 dir = normalize(vDir);
-  float up = max(dir.y, 0.0);
-  float g = pow(1.0 - up, 3.0);
-  vec3 col = mix(ZEN, HOR, g);
-  float cosT = dot(dir, sunDir);
-  float c = max(cosT, 0.0);
-  float c2 = c * c; float c4 = c2 * c2;
-  float mie = c4 * c2 * 0.5 + pow(c, 48.0) * 1.35;
-  col += SUNC * mie * (0.35 + 0.95 * g);
-  if (dir.y > -0.02) {
-    float inv = 1.0 / (abs(dir.y) + 0.30);
-    vec2 uv = vec2(dir.x * inv * 0.26 + 0.31, dir.z * inv * 0.26 + 0.17);
-    float raw = texture2D(clouds, uv).r;
-    float cover = raw * smoothstep(0.0, 0.30, dir.y);
-    float lit = clamp(0.30 + raw * 0.9 + c4 * 0.6, 0.0, 1.0);
-    vec3 cc = mix(vec3(0.34, 0.36, 0.44), vec3(1.48, 1.40, 1.32), lit) + SUNC * c4 * 0.30;
-    col = mix(col, cc, clamp(cover * 0.92, 0.0, 1.0));
-  }
-  float disc = smoothstep(0.99955, 0.99982, cosT);
-  col += vec3(42.0, 30.0, 19.0) * disc;
-  col = mix(GND, col, smoothstep(-0.22, 0.0, dir.y));
-  gl_FragColor = vec4(col, 1.0);
-}`;
-
-export function buildSkybox(scene, sunDir, field) {
-  Effect.ShadersStore['procSkyVertexShader'] = SKY_VS;
-  Effect.ShadersStore['procSkyFragmentShader'] = SKY_FS;
-  const mat = new ShaderMaterial('skyMat', scene, 'procSky', {
-    attributes: ['position'],
-    uniforms: ['worldViewProjection', 'sunDir'],
-    samplers: ['clouds'],
-  });
-  mat.setVector3('sunDir', sunDir);
-  mat.setTexture('clouds', cloudTexture(scene, field));
+export function buildSkybox(scene, sunDir, skyCube) {
+  const mat = new StandardMaterial('skyMat', scene);
   mat.backFaceCulling = false;
+  mat.disableLighting = true;
+  mat.reflectionTexture = skyCube;
+  mat.diffuseColor = new Color3(0, 0, 0);
+  mat.specularColor = new Color3(0, 0, 0);
+  mat.emissiveColor = new Color3(0, 0, 0);
   mat.disableDepthWrite = false;
-  const dome = MeshBuilder.CreateIcoSphere('skybox', { radius: 440, subdivisions: 4, flat: false }, scene);
+  const dome = MeshBuilder.CreateIcoSphere('skybox', { radius: 440, subdivisions: 3, flat: false }, scene);
   dome.material = mat;
   dome.infiniteDistance = true;
   dome.isPickable = false;

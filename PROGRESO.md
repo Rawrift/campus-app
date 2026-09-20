@@ -86,7 +86,41 @@ aquí no hay WebGPU y la ruta WebGPU no es verificable.
 
 ---
 
-## Mediciones del Gauntlet 001 (arnés neutral, ejecutadas en secuencia)
+## ⚠ RETRACTACIÓN: las primeras mediciones del Gauntlet 001 no eran válidas
+
+La tabla que aparece debajo **se publicó con cifras falsas** y se conserva tachada como
+registro del error. Dos defectos, ambos míos:
+
+**1. El arnés se fiaba del FPS que declaraba cada candidato.** Cada builder implementaba
+`stats().fps` a su manera. El candidato Three devolvía `1000 / msCPU`, que no es FPS sino el
+inverso del tiempo de CPU por fotograma. El candidato PlayCanvas devolvía FPS de reloj de
+pared. **Comparé dos magnitudes distintas** y de ahí salió el ridículo "290 fps contra 1,4".
+Medido bien, Three está en 0,3-1,1 fps de reloj de pared con 8-23 ms de CPU por fotograma: la
+diferencia real entre ambos es mucho menor de lo que publiqué, y el orden está por decidir.
+
+**2. Las mediciones no se hicieron en exclusiva.** Mientras medía, un agente ejecutaba su
+propio benchmark: un Chrome al 356 % de CPU sobre 4 núcleos, carga media 4,4. Comprobado
+empíricamente: un stub que da ~60 fps en exclusiva dio **32** en esas condiciones. Todas las
+cifras de reloj de pared de esa tanda están contaminadas.
+
+Lo que **sí** sigue siendo válido de aquella tanda, porque no depende del reloj: triángulos,
+draw calls, cuerpos físicos simulados, ausencia de errores de consola y el juicio visual.
+
+**Correcciones aplicadas al método (`tools/bench.mjs`):**
+- El arnés instala **su propio bucle rAF**, idéntico para todos, y cuenta los fotogramas que
+  el navegador presenta de verdad. Lo que declara el candidato se guarda aparte, en
+  `declarado`, y **nunca se mezcla** con la medición.
+- **Guarda de exclusividad**: antes de medir comprueba carga media y navegadores ajenos
+  activos, y **aborta** si el contenedor no está libre. Abortar es mejor que publicar una
+  comparación falsa. Se puede forzar con `BENCH_FORZAR=1`, y entonces el informe queda marcado
+  como no comparable.
+
+El gauntlet se remide entero, en exclusiva y con el arnés corregido, cuando los tres
+candidatos estén terminados.
+
+---
+
+## ~~Mediciones del Gauntlet 001~~ (RETRACTADAS — ver arriba)
 
 Ejecutadas por el agente líder con `tools/bench.mjs`, no por los builders. Secuencialmente,
 nunca en paralelo: bajo rasterizado software dos procesos compitiendo por 4 núcleos falsearían

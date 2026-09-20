@@ -150,7 +150,7 @@ export class PhysWorld {
   buildInitialProps() {
     const r = this.rand;
     // 3 pyramids of 5 levels of 0.8 m crates -> 15 each = 45
-    const pyr = [[-6.4, 0.0], [5.6, -4.4], [3.2, 4.6]];
+    const pyr = [[-6.6, 0.4], [6.8, -4.6], [8.2, 3.2]];
     for (const [px, pz] of pyr) {
       for (let lvl = 0; lvl < 5; lvl++) {
         const n = 5 - lvl;
@@ -383,8 +383,15 @@ export class PhysWorld {
       }
       if (t.y < -25) { rb.setTranslation({ x: (this.rand() - 0.5) * 16, y: 14, z: (this.rand() - 0.5) * 10 }, true); }
       const q = rb.rotation();
+      if (!Number.isFinite(q.x) || !Number.isFinite(q.y) || !Number.isFinite(q.z) || !Number.isFinite(q.w)) {
+        rb.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+        rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        _qt.set(0, 0, 0, 1);
+      } else {
+        _qt.set(q.x, q.y, q.z, q.w);
+        if (Math.abs(_qt.lengthSq() - 1) > 0.02) _qt.normalize();
+      }
       _pos.set(t.x, t.y, t.z);
-      _qt.set(q.x, q.y, q.z, q.w);
       if (rec.scale) _scl.set(rec.scale[0], rec.scale[1], rec.scale[2]); else _scl.set(1, 1, 1);
       _mat.compose(_pos, _qt, _scl);
       rec.pool.mesh.setMatrixAt(rec.idx, _mat);
@@ -402,10 +409,11 @@ export class PhysWorld {
       const p = this.pools[k];
       p.mesh.count = p.n;
       p.mesh.instanceMatrix.needsUpdate = true;
-      p.mesh.computeBoundingSphere();
     }
     if (this.signBody) {
-      const t = this.signBody.rb.translation(), q = this.signBody.rb.rotation();
+      const t = this.signBody.rb.translation(); let q = this.signBody.rb.rotation();
+      if (!Number.isFinite(q.x) || !Number.isFinite(q.w)) { this.signBody.rb.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true); q = { x: 0, y: 0, z: 0, w: 1 }; }
+      if (!Number.isFinite(t.x)) { t.x = 0; t.y = 6; t.z = 8.55; }
       this.signBody.mesh.position.set(t.x, t.y, t.z);
       this.signBody.mesh.quaternion.set(q.x, q.y, q.z, q.w);
     }

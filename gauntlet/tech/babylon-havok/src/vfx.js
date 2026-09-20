@@ -31,7 +31,7 @@ export function buildVFX(scene, sunDir) {
   });
 
   // ---------- polvo en el haz de luz (interior) ----------
-  const motes = new ParticleSystem('motes', 900, scene);
+  const motes = new ParticleSystem('motes', 720, scene);
   motes.particleTexture = dot;
   motes.emitter = new Vector3(-1, 3.4, 1.0);
   motes.createBoxEmitter(new Vector3(0, 1, 0), new Vector3(0, 1, 0),
@@ -41,7 +41,7 @@ export function buildVFX(scene, sunDir) {
   motes.colorDead = new Color4(0.5, 0.5, 0.6, 0);
   motes.minSize = 0.016; motes.maxSize = 0.055;
   motes.minLifeTime = 7; motes.maxLifeTime = 15;
-  motes.emitRate = 95;
+  motes.emitRate = 62;
   motes.blendMode = ParticleSystem.BLENDMODE_ADD;
   motes.gravity = new Vector3(0, -0.035, 0);
   motes.direction1 = new Vector3(-0.12, 0.05, -0.12);
@@ -53,17 +53,17 @@ export function buildVFX(scene, sunDir) {
   V.motes = motes;
 
   // polvo ambiente mas denso y tenue
-  const haze = new ParticleSystem('haze', 420, scene);
+  const haze = new ParticleSystem('haze', 70, scene);
   haze.particleTexture = puff;
   haze.emitter = new Vector3(0, 3.0, 0);
   haze.createBoxEmitter(new Vector3(0, 1, 0), new Vector3(0, 1, 0),
     new Vector3(-11, -2.8, -7.5), new Vector3(11, 4.0, 7.5));
-  haze.color1 = new Color4(0.62, 0.60, 0.58, 0.055);
+  haze.color1 = new Color4(0.66, 0.63, 0.60, 0.075);
   haze.color2 = new Color4(0.42, 0.45, 0.55, 0.035);
   haze.colorDead = new Color4(0.4, 0.42, 0.5, 0);
-  haze.minSize = 1.6; haze.maxSize = 4.2;
+  haze.minSize = 1.1; haze.maxSize = 2.1;
   haze.minLifeTime = 10; haze.maxLifeTime = 18;
-  haze.emitRate = 24;
+  haze.emitRate = 5;
   haze.blendMode = ParticleSystem.BLENDMODE_STANDARD;
   haze.gravity = new Vector3(0, 0.02, 0);
   haze.minEmitPower = 0.02; haze.maxEmitPower = 0.1;
@@ -75,7 +75,7 @@ export function buildVFX(scene, sunDir) {
   // ---------- columna de humo de un bidon exterior ----------
   const BARREL = new Vector3(11.2, 0.0, 17.0);
   V.barrelPos = BARREL;
-  const smoke = new ParticleSystem('smoke', 520, scene);
+  const smoke = new ParticleSystem('smoke', 210, scene);
   smoke.particleTexture = puff;
   smoke.emitter = new Vector3(BARREL.x, BARREL.y + 0.95, BARREL.z);
   smoke.createConeEmitter(0.26, 0.5);
@@ -84,9 +84,9 @@ export function buildVFX(scene, sunDir) {
   smoke.colorDead = new Color4(0.09, 0.09, 0.10, 0);
   smoke.minSize = 0.55; smoke.maxSize = 1.2;
   smoke.addSizeGradient(0, 0.5, 0.9);
-  smoke.addSizeGradient(1.0, 3.6, 5.4);
+  smoke.addSizeGradient(1.0, 2.6, 4.0);
   smoke.minLifeTime = 3.2; smoke.maxLifeTime = 6.0;
-  smoke.emitRate = 46;
+  smoke.emitRate = 22;
   smoke.blendMode = ParticleSystem.BLENDMODE_STANDARD;
   smoke.gravity = new Vector3(0.55, 1.7, -0.35);
   smoke.minEmitPower = 1.1; smoke.maxEmitPower = 2.4;
@@ -96,7 +96,7 @@ export function buildVFX(scene, sunDir) {
   smoke.start();
   V.smoke = smoke;
 
-  const fire = new ParticleSystem('fire', 260, scene);
+  const fire = new ParticleSystem('fire', 180, scene);
   fire.particleTexture = puff;
   fire.emitter = new Vector3(BARREL.x, BARREL.y + 0.82, BARREL.z);
   fire.createConeEmitter(0.2, 0.4);
@@ -105,7 +105,7 @@ export function buildVFX(scene, sunDir) {
   fire.colorDead = new Color4(0.5, 0.12, 0.02, 0);
   fire.minSize = 0.16; fire.maxSize = 0.52;
   fire.minLifeTime = 0.35; fire.maxLifeTime = 0.85;
-  fire.emitRate = 120;
+  fire.emitRate = 85;
   fire.blendMode = ParticleSystem.BLENDMODE_ADD;
   fire.gravity = new Vector3(0.1, 2.6, 0);
   fire.minEmitPower = 0.7; fire.maxEmitPower = 1.8;
@@ -145,7 +145,7 @@ export function buildVFX(scene, sunDir) {
   };
 
   // ---------- polvo de explosion ----------
-  const blast = new ParticleSystem('blast', 700, scene);
+  const blast = new ParticleSystem('blast', 380, scene);
   blast.particleTexture = puff;
   blast.emitter = new Vector3(0, 1, 0);
   blast.createSphereEmitter(2.2, 0.85);
@@ -154,7 +154,7 @@ export function buildVFX(scene, sunDir) {
   blast.colorDead = new Color4(0.2, 0.19, 0.19, 0);
   blast.minSize = 1.0; blast.maxSize = 2.6;
   blast.addSizeGradient(0, 0.7, 1.4);
-  blast.addSizeGradient(1.0, 4.5, 7.5);
+  blast.addSizeGradient(1.0, 3.2, 5.0);
   blast.minLifeTime = 1.6; blast.maxLifeTime = 3.6;
   blast.emitRate = 0; blast.manualEmitCount = 0;
   blast.blendMode = ParticleSystem.BLENDMODE_STANDARD;
@@ -162,7 +162,7 @@ export function buildVFX(scene, sunDir) {
   blast.minEmitPower = 5; blast.maxEmitPower = 17;
   blast.updateSpeed = 0.02;
   blast.start();
-  const flash = new ParticleSystem('flash', 260, scene);
+  const flash = new ParticleSystem('flash', 150, scene);
   flash.particleTexture = puff;
   flash.emitter = new Vector3(0, 1, 0);
   flash.createSphereEmitter(1.1, 1.0);
@@ -180,8 +180,8 @@ export function buildVFX(scene, sunDir) {
   V.blastAt = (pos) => {
     blast.emitter = pos.clone();
     flash.emitter = pos.clone();
-    blast.manualEmitCount = 260;
-    flash.manualEmitCount = 110;
+    blast.manualEmitCount = 150;
+    flash.manualEmitCount = 70;
   };
 
   // ---------- haces de luz volumetricos (falsos, aditivos) ----------
@@ -207,8 +207,7 @@ export function buildVFX(scene, sunDir) {
   const mkShaft = (from, width, length, power) => {
     const beam = sunDir.scale(-1).normalize();           // direccion en que viaja la luz
     let right = Vector3.Cross(new Vector3(0, 1, 0), beam).normalize();
-    for (let k = 0; k < 2; k++) {
-      if (k === 1) right = Vector3.Cross(right, beam).normalize();
+    for (let k = 0; k < 1; k++) {
       const p = MeshBuilder.CreatePlane('shaft', { width, height: length }, scene);
       p.material = shaftMat;
       p.isPickable = false;

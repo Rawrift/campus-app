@@ -5,7 +5,38 @@ import { chromium } from 'playwright';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+
+// --- GUARDA DE EXCLUSIVIDAD ---------------------------------------------------
+// Bajo rasterizado por software, 4 núcleos y un navegador ajeno al 300% de CPU, las
+// cifras no valen nada. Se detectó empíricamente: un stub que da 60 fps en exclusiva
+// dio 32 con otro benchmark corriendo en paralelo. Medir así produce comparaciones
+// falsas, que es peor que no medir. Por eso esto aborta en lugar de avisar.
+function comprobarExclusividad({ forzar = false } = {}) {
+  const nucleos = os.cpus().length;
+  const carga = os.loadavg()[0];
+  let ajenos = [];
+  try {
+    const ps = execSync('ps -eo pid,pcpu,comm --no-headers', { encoding: 'utf8' });
+    ajenos = ps.split('\n')
+      .map(l => l.trim().split(/\s+/))
+      .filter(c => c.length >= 3 && /chrome|headless_shell/.test(c[2]) && Number(c[1]) > 25)
+      .filter(c => Number(c[0]) !== process.pid);
+  } catch {}
+  const limpio = carga < nucleos * 0.7 && ajenos.length === 0;
+  const informe = { nucleos, cargaMedia: +carga.toFixed(2),
+    navegadoresAjenosActivos: ajenos.map(c => ({ pid: c[0], cpu: c[1] })), exclusivo: limpio };
+  if (!limpio && !forzar) {
+    console.error('\n✖ MEDICIÓN ABORTADA: el contenedor no está en exclusiva.');
+    console.error('  ' + JSON.stringify(informe));
+    console.error('  Las cifras saldrían falseadas. Espera a que terminen los demás procesos,');
+    console.error('  o repite con BENCH_FORZAR=1 sabiendo que el resultado NO es comparable.\n');
+    process.exit(2);
+  }
+  return informe;
+}
 
 const MIME = { '.html':'text/html', '.js':'text/javascript', '.mjs':'text/javascript',
   '.css':'text/css', '.json':'application/json', '.wasm':'application/wasm',
@@ -46,8 +77,10 @@ const SETTLE = Number(process.env.BENCH_SETTLE || 2500);
 const SAMPLE = Number(process.env.BENCH_SAMPLE || 4000);
 
 fs.mkdirSync(outDir, { recursive: true });
+const exclusividad = comprobarExclusividad({ forzar: process.env.BENCH_FORZAR === '1' });
 const srv = await serve(root, PORT);
-const report = { label, root, startedAt: new Date().toISOString(), errors: [], cameras: [], phases: [] };
+const report = { label, root, startedAt: new Date().toISOString(), exclusividad,
+                 errors: [], cameras: [], phases: [] };
 
 const browser = await chromium.launch({
   executablePath: '/opt/pw-browsers/chromium',
@@ -58,6 +91,34 @@ const browser = await chromium.launch({
 });
 const ctx = await browser.newContext({ viewport:{width:1280,height:720}, deviceScaleFactor:1 });
 const page = await ctx.newPage();
+
+// --- MEDIDOR DE FPS NEUTRAL ---------------------------------------------------
+// No confiamos en el stats().fps de cada candidato: cada builder lo implementa a su
+// manera y ya se detectó un caso que devolvía 1000/msCPU en lugar de FPS real, lo que
+// invalida cualquier comparación. Aquí instalamos NUESTRO propio bucle rAF, idéntico
+// para todos, que cuenta fotogramas realmente presentados por el navegador.
+await page.addInitScript(() => {
+  const M = { n: 0, dts: [], last: 0, activo: false };
+  window.__ARNES = M;
+  const tick = (t) => {
+    if (M.activo) { if (M.last) M.dts.push(t - M.last); M.n++; }
+    M.last = t;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  window.__ARNES.reset = () => { M.n = 0; M.dts.length = 0; M.activo = true; };
+  window.__ARNES.leer = () => {
+    const d = M.dts.slice().sort((a, b) => a - b);
+    const suma = M.dts.reduce((a, b) => a + b, 0);
+    return {
+      fotogramas: M.n,
+      fpsReal: M.dts.length ? 1000 / (suma / M.dts.length) : 0,
+      frameMsReal: M.dts.length ? suma / M.dts.length : 0,
+      p95FrameMsReal: d.length ? d[Math.floor(d.length * 0.95)] : 0,
+      peorFrameMs: d.length ? d[d.length - 1] : 0,
+    };
+  };
+});
 page.on('console', m => { if (m.type()==='error') report.errors.push('console: '+m.text().slice(0,400)); });
 page.on('pageerror', e => report.errors.push('pageerror: '+String(e).slice(0,400)));
 
@@ -76,10 +137,12 @@ try {
 }
 
 async function sample(tag) {
-  await page.evaluate(() => window.__BENCH.resetStats());
+  await page.evaluate(() => { window.__BENCH.resetStats(); window.__ARNES.reset(); });
   await page.waitForTimeout(SAMPLE);
-  const s = await page.evaluate(() => window.__BENCH.stats());
-  return { tag, ...s };
+  const declarado = await page.evaluate(() => window.__BENCH.stats());
+  const medido = await page.evaluate(() => window.__ARNES.leer());
+  // 'medido' manda. Lo que declara el candidato se conserva aparte, nunca mezclado.
+  return { tag, ...medido, declarado };
 }
 async function shot(name) {
   await page.screenshot({ path: path.join(outDir, name+'.png') });
@@ -104,7 +167,7 @@ async function runPhase(name, waitMs, shots=1) {
     }
     const s = await sample(`phase_${name}`);
     report.phases.push(s);
-    console.error(`[${label}] phase ${name}: fps=${s.fps?.toFixed?.(1)} bodies=${s.bodies}`);
+    console.error(`[${label}] fase ${name}: fpsReal=${s.fpsReal?.toFixed?.(2)} cuerpos=${s.declarado?.bodies}`);
   } catch(e) { report.phases.push({tag:'phase_'+name, error:String(e).slice(0,300)}); }
 }
 await page.evaluate(() => window.__BENCH.setCamera(0));
@@ -127,6 +190,8 @@ report.finishedAt = new Date().toISOString();
 fs.writeFileSync(path.join(outDir,'metrics.json'), JSON.stringify(report,null,2));
 await browser.close(); srv.close();
 console.log(JSON.stringify({label, loadTimeMs:report.loadTimeMs, readyWallMs:report.readyWallMs,
-  cams:report.cameras.map(c=>({t:c.tag,fps:c.fps,dc:c.drawCalls,tri:c.triangles})),
-  phases:report.phases.map(p=>({t:p.tag,fps:p.fps,bodies:p.bodies,act:p.activeBodies,err:p.error})),
+  cams:report.cameras.map(c=>({t:c.tag, fpsReal:+c.fpsReal?.toFixed(2), p95:+c.p95FrameMsReal?.toFixed(1),
+    dc:c.declarado?.drawCalls, tri:c.declarado?.triangles})),
+  phases:report.phases.map(p=>({t:p.tag, fpsReal:+p.fpsReal?.toFixed(2), p95:+p.p95FrameMsReal?.toFixed(1),
+    bodies:p.declarado?.bodies, act:p.declarado?.activeBodies, err:p.error})),
   errors:report.errors.slice(0,5)}, null, 1));

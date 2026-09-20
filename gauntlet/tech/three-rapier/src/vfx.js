@@ -39,7 +39,7 @@ export function makeDust(count, sprite, sampleLight) {
         p.z += cos(uTime*0.27 + aPhase.z)*0.48 + cos(uTime*0.09 + aPhase.x)*0.7;
         vec4 mv = modelViewMatrix * vec4(p,1.0);
         gl_Position = projectionMatrix * mv;
-        gl_PointSize = max(1.0, aSize * uScale / max(0.4, -mv.z));
+        gl_PointSize = clamp(aSize * uScale / max(0.4, -mv.z), 1.0, 26.0);
         vColor = aColor;
         vA = 0.45 + 0.55 * (0.5 + 0.5*sin(uTime*0.9 + aPhase.x*2.7));
       }`,
@@ -49,7 +49,7 @@ export function makeDust(count, sprite, sampleLight) {
         vec4 t = texture2D(uMap, gl_PointCoord);
         float a = t.a * vA;
         if (a < 0.008) discard;
-        gl_FragColor = vec4(vColor * a, a);
+        gl_FragColor = vec4(vColor * a, 1.0);
       }`,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
   });
@@ -96,8 +96,8 @@ export function makeSmoke(count, sprite, origin, sunColor) {
         p.z += cos(life*3.4 + aSeed.y) * (0.3 + life*1.9) + cos(uTime*0.33 + aSeed.y)*life*1.1;
         vec4 mv = modelViewMatrix * vec4(p,1.0);
         gl_Position = projectionMatrix * mv;
-        float sz = (0.35 + life*3.1) * aSeed.z;
-        gl_PointSize = max(2.0, sz * uScale / max(0.5, -mv.z));
+        float sz = (0.30 + life*2.3) * aSeed.z;
+        gl_PointSize = clamp(sz * uScale / max(0.5, -mv.z), 2.0, 92.0);
         vFlicker = aSeed.z;
       }`,
     fragmentShader: `
@@ -148,7 +148,7 @@ export class Sparks {
         void main(){
           vec4 mv = modelViewMatrix * vec4(position,1.0);
           gl_Position = projectionMatrix * mv;
-          gl_PointSize = max(1.0, aSize * uScale / max(0.4,-mv.z));
+          gl_PointSize = clamp(aSize * uScale / max(0.4,-mv.z), 1.0, 34.0);
           vL = aLife;
         }`,
       fragmentShader: `
@@ -158,7 +158,7 @@ export class Sparks {
           vec4 t = texture2D(uMap, gl_PointCoord);
           float a = t.a * clamp(vL, 0.0, 1.0);
           vec3 hot = mix(vec3(1.0,0.32,0.05), vec3(1.0,0.95,0.72), clamp(vL*1.5,0.0,1.0));
-          gl_FragColor = vec4(hot * a * 2.2, a);
+          gl_FragColor = vec4(hot * a * 2.4, 1.0);
         }`,
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     });
@@ -230,7 +230,7 @@ export class Blast {
           vec4 mv = modelViewMatrix * vec4(position,1.0);
           gl_Position = projectionMatrix * mv;
           float grow = (1.0 - aLife) * 3.4 + 0.5;
-          gl_PointSize = max(2.0, aSize * grow * uScale / max(0.5,-mv.z));
+          gl_PointSize = clamp(aSize * grow * uScale / max(0.5,-mv.z), 2.0, 96.0);
           vL = aLife;
         }`,
       fragmentShader: `

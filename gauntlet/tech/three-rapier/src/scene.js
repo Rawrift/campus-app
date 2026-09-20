@@ -46,6 +46,17 @@ export function placed(geo, x, y, z, rx, ry, rz) {
   return g;
 }
 
+// a cylinder laid along a horizontal run: Y axis -> Z, then yaw. Euler XYZ applies the
+// X rotation last, so the naive placed(..., PI/2, ang, 0) ignores the yaw entirely.
+export function placedRail(geo, x, y, z, angY) {
+  const g = geo.clone();
+  g.rotateX(Math.PI / 2);
+  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angY);
+  const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(1, 1, 1));
+  g.applyMatrix4(m);
+  return g;
+}
+
 // merge helper that tolerates mixed indexed / non-indexed inputs
 export function mergeSafe(parts) {
   const list = parts.map((g) => {
@@ -76,8 +87,10 @@ function applyMaps(mat, maps, tileMeters, opts) {
   const nrm = maps.normalMap.clone(); nrm.repeat.set(r, r); nrm.needsUpdate = true;
   const orm = maps.orm.clone(); orm.repeat.set(r, r); orm.needsUpdate = true;
   mat.map = map; mat.normalMap = nrm;
-  mat.roughnessMap = orm; mat.metalnessMap = orm; mat.aoMap = orm;
-  mat.aoMap.channel = 0;
+  mat.roughnessMap = orm;
+  // AO is baked into the albedo; metalness only gets a map where the surface is
+  // actually part metal, so dielectrics do one texture fetch less per pixel.
+  if (opts && opts.metalMap) mat.metalnessMap = orm;
   mat.normalScale = new THREE.Vector2(opts && opts.ns !== undefined ? opts.ns : 1, opts && opts.ns !== undefined ? opts.ns : 1);
   return mat;
 }
@@ -86,9 +99,32 @@ export function pbr(maps, tileMeters, params, opts) {
   return applyMaps(m, maps, tileMeters, opts);
 }
 
+
+/* Breaks up texture tiling with a low-frequency world-space variation map.
+   One extra fetch, reused for albedo and roughness. */
+function macroBreakup(mat, tex, scale, lo, hi, rlo, rhi) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uMacro = { value: tex };
+    sh.uniforms.uMScale = { value: scale };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWPosM;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWPosM = (modelMatrix * vec4(transformed,1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D uMacro;\nuniform float uMScale;\nvarying vec3 vWPosM;\nvec3 gMacro;')
+      .replace('#include <map_fragment>', '#include <map_fragment>\n'
+        + 'gMacro = texture2D(uMacro, (vWPosM.xz + vWPosM.y * vec2(0.41, 0.77)) * uMScale).rgb;\n'
+        + 'diffuseColor.rgb *= mix(' + lo.toFixed(3) + ', ' + hi.toFixed(3) + ', gMacro.r) * mix(0.84, 1.20, gMacro.g);\n'
+        + 'diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.16,1.02,0.86), gMacro.b * 0.75);')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n'
+        + 'roughnessFactor = clamp(roughnessFactor * mix(' + rlo.toFixed(3) + ', ' + rhi.toFixed(3) + ', gMacro.g) * mix(1.05, 0.82, gMacro.b), 0.04, 1.0);');
+  };
+  mat.customProgramCacheKey = () => 'macro' + scale.toFixed(4);
+}
+
 /* --------------------------------------------------------------- the build */
 export function buildScene(renderer) {
-  const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  // software rasteriser: anisotropic filtering costs 8-16 taps per fetch. Trilinear only.
+  const aniso = Math.min(4, renderer.capabilities.getMaxAnisotropy());
   const scene = new THREE.Scene();
   const statics = [];           // collider descriptors for rapier
   const addBoxCollider = (w, h, d, x, y, z, ry) => statics.push({ hx: w / 2, hy: h / 2, hz: d / 2, p: [x, y, z], ry: ry || 0 });
@@ -103,7 +139,7 @@ export function buildScene(renderer) {
     rust: TEX.rustMaps(256, aniso),
     wood: TEX.woodMaps(256, aniso),
     rubber: TEX.rubberMaps(256, aniso),
-    plastic: TEX.plasticMaps(128, aniso, [0.55, 0.16, 0.06]),
+    plastic: TEX.plasticMaps(128, aniso, [0.38, 0.145, 0.055]),
     corr: TEX.corrugatedMaps(256, aniso, [0.34, 0.37, 0.36]),
     corrBlue: TEX.corrugatedMaps(256, aniso, [0.10, 0.22, 0.34]),
     grate: TEX.gratingMaps(256, aniso),
@@ -118,25 +154,32 @@ export function buildScene(renderer) {
 
   /* ---------------- materials ---------------- */
   const M = {};
-  M.asphalt = pbr(T.asphalt, 4.0, { color: 0xffffff, envMapIntensity: 0.85 }, { ns: 1.0 });
-  M.floor = pbr(T.floor, 4.0, { color: 0xffffff, envMapIntensity: 1.0 }, { ns: 0.8 });
-  M.wall = pbr(T.wall, 3.0, { color: 0xffffff, envMapIntensity: 0.9 }, { ns: 1.0 });
-  M.steel = pbr(T.steel, 1.6, { color: 0xffffff, envMapIntensity: 1.1 }, { ns: 0.9 });
-  M.steelWarn = pbr(T.steelWarn, 1.2, { color: 0xffffff, envMapIntensity: 1.1 }, { ns: 0.9 });
-  M.rust = pbr(T.rust, 1.1, { color: 0xffffff, envMapIntensity: 1.0 }, { ns: 1.1 });
-  M.wood = pbr(T.wood, 1.0, { color: 0xffffff, envMapIntensity: 0.85 }, { ns: 1.0 });
-  M.rubber = pbr(T.rubber, 0.9, { color: 0xffffff, envMapIntensity: 0.6 }, { ns: 1.2 });
-  M.plastic = pbr(T.plastic, 0.7, { color: 0xffffff, envMapIntensity: 1.0 }, { ns: 0.6 });
-  M.corr = pbr(T.corr, 2.2, { color: 0xffffff, envMapIntensity: 1.0 }, { ns: 1.2 });
-  M.corrBlue = pbr(T.corrBlue, 2.2, { color: 0xffffff, envMapIntensity: 1.0 }, { ns: 1.2 });
-  M.grate = pbr(T.grate, 1.4, { color: 0xffffff, envMapIntensity: 1.0 }, { ns: 1.0 });
-  M.sign = pbr(T.sign, 2.4, { color: 0xffffff, envMapIntensity: 1.0 }, { ns: 0.8 });
+  M.asphalt = pbr(T.asphalt, 3.2, { color: 0xffffff, metalness: 0, envMapIntensity: 0.85 }, { ns: 1.5 });
+  M.floor = pbr(T.floor, 3.0, { color: 0xffffff, metalness: 0, envMapIntensity: 1.0 }, { ns: 1.5 });
+  M.wall = pbr(T.wall, 2.2, { color: 0xffffff, metalness: 0, envMapIntensity: 0.9 }, { ns: 1.9 });
+  M.steel = pbr(T.steel, 1.6, { color: 0xffffff, envMapIntensity: 1.1 }, { metalMap: true, ns: 0.9 });
+  M.steelWarn = pbr(T.steelWarn, 1.2, { color: 0xffffff, envMapIntensity: 1.1 }, { metalMap: true, ns: 0.9 });
+  M.rust = pbr(T.rust, 1.1, { color: 0xffffff, envMapIntensity: 1.0 }, { metalMap: true, ns: 1.1 });
+  M.wood = pbr(T.wood, 1.0, { color: 0xffffff, metalness: 0, envMapIntensity: 0.85 }, { ns: 1.0 });
+  M.rubber = pbr(T.rubber, 0.9, { color: 0xffffff, metalness: 0, envMapIntensity: 0.30 }, { ns: 1.2 });
+  M.plastic = pbr(T.plastic, 0.7, { color: 0xffffff, metalness: 0, envMapIntensity: 1.0 }, { ns: 0.6 });
+  M.corr = pbr(T.corr, 2.2, { color: 0xffffff, envMapIntensity: 1.0 }, { metalMap: true, ns: 1.2 });
+  M.corrBlue = pbr(T.corrBlue, 2.2, { color: 0xffffff, envMapIntensity: 1.0 }, { metalMap: true, ns: 1.2 });
+  M.grate = pbr(T.grate, 0.62, { color: 0xffffff, envMapIntensity: 1.0 }, { metalMap: true, ns: 1.0 });
+  M.sign = pbr(T.sign, 2.4, { color: 0xffffff, envMapIntensity: 1.0 }, { metalMap: true, ns: 0.8 });
   M.puddle = pbr(T.puddle, 6.0, { color: 0xffffff, envMapIntensity: 2.6, transparent: true, depthWrite: false }, { ns: 0.35 });
   M.puddle.roughness = 1; M.puddle.metalness = 1;
 
+  // bring every albedo into a plausible linear-reflectance range
+  const tint = (m, k) => { m.color.setRGB(k, k, k); return m; };
+  tint(M.asphalt, 0.185); tint(M.floor, 0.80); tint(M.wall, 0.56);
+  tint(M.steel, 0.46); tint(M.steelWarn, 0.62); tint(M.rust, 0.52);
+  tint(M.wood, 0.50); tint(M.rubber, 1.0); tint(M.plastic, 0.80);
+  tint(M.corr, 0.50); tint(M.corrBlue, 0.52); tint(M.grate, 0.66); tint(M.sign, 0.72);
+
   M.glass = new THREE.MeshStandardMaterial({
-    color: 0x9fb8c4, roughness: 0.06, metalness: 0.0, transparent: true, opacity: 0.22,
-    envMapIntensity: 2.2, side: THREE.DoubleSide, depthWrite: false,
+    color: 0x5e7280, roughness: 0.055, metalness: 0.06, transparent: true, opacity: 0.16,
+    envMapIntensity: 1.5, side: THREE.DoubleSide, depthWrite: false,
   });
   M.fence = new THREE.MeshStandardMaterial({
     map: (() => { const t = chain.clone(); t.repeat.set(1, 1); t.needsUpdate = true; return t; })(),
@@ -146,40 +189,29 @@ export function buildScene(renderer) {
   });
   M.lamp = new THREE.MeshStandardMaterial({
     color: 0x1a1a18, roughness: 0.5, metalness: 0.4,
-    emissive: new THREE.Color(0xffd7a0), emissiveIntensity: 7.0,
+    emissive: new THREE.Color(0xffd7a0), emissiveIntensity: 3.2,
   });
   M.stain = new THREE.MeshBasicMaterial({
-    map: stainSprite, transparent: true, opacity: 0.55, depthWrite: false, color: 0x0a0a0c,
+    map: stainSprite, transparent: true, opacity: 0.62, depthWrite: false, color: 0x131418,
     blending: THREE.NormalBlending,
   });
 
-  // macro variation on the big ground plane: kills tiling
-  M.asphalt.userData.macro = macro;
-  M.asphalt.onBeforeCompile = (sh) => {
-    sh.uniforms.uMacro = { value: macro };
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vMacroUv;')
-      .replace('#include <uv_vertex>', '#include <uv_vertex>\nvMacroUv = uv * 0.0060;');
-    sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform sampler2D uMacro;\nvarying vec2 vMacroUv;')
-      .replace('#include <map_fragment>', `#include <map_fragment>
-        vec3 mv = texture2D( uMacro, vMacroUv ).rgb;
-        diffuseColor.rgb *= mix( 0.55, 1.45, mv.r );
-        diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3(1.08,1.02,0.92), mv.b );`)
-      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        roughnessFactor = clamp( roughnessFactor * mix(0.80, 1.12, texture2D(uMacro, vMacroUv).g), 0.05, 1.0 );`);
-  };
+  // low-frequency break-up so nothing reads as a repeating tile
+  macroBreakup(M.asphalt, macro, 0.016, 0.62, 1.55, 0.55, 1.18);
+  macroBreakup(M.wall, macro.clone(), 0.115, 0.50, 1.55, 0.70, 1.28);
+  macroBreakup(M.floor, macro.clone(), 0.052, 0.66, 1.40, 0.55, 1.25);
+  macroBreakup(M.corr, macro.clone(), 0.050, 0.55, 1.42, 0.85, 1.22);
 
   /* ---------------- sky + IBL ---------------- */
   const sky = new Sky();
-  sky.scale.setScalar(20000);
+  sky.scale.setScalar(2000);
   const su = sky.material.uniforms;
-  su.turbidity.value = 4.2;
-  su.rayleigh.value = 1.35;
-  su.mieCoefficient.value = 0.010;
-  su.mieDirectionalG.value = 0.82;
-  const sunDir = new THREE.Vector3(0.62, 0.30, 0.47).normalize();
+  su.turbidity.value = 4.4;
+  su.rayleigh.value = 1.85;
+  su.mieCoefficient.value = 0.013;
+  su.mieDirectionalG.value = 0.86;
+  const sunDir = new THREE.Vector3(-0.300, 0.400, 0.866).normalize();
   su.sunPosition.value.copy(sunDir);
-  scene.add(sky);
 
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
@@ -195,33 +227,42 @@ export function buildScene(renderer) {
   // ground bounce so the IBL is not blue-only
   const bounce = new THREE.Mesh(
     new THREE.SphereGeometry(4000, 12, 8, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.5),
-    new THREE.MeshBasicMaterial({ color: new THREE.Color(0.115, 0.105, 0.095), side: THREE.BackSide })
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(0.085, 0.072, 0.058), side: THREE.BackSide })
   );
   envScene.add(bounce);
   const envRT = pmrem.fromScene(envScene, 0.02);
   scene.environment = envRT.texture;
-  scene.environmentIntensity = 0.30;
+  scene.environmentIntensity = 0.50;
+  // bake the sky dome into a cube map so the background costs one texture fetch
+  const skyOnly = new THREE.Scene();
+  skyOnly.add(sky);
+  const cubeRT = new THREE.WebGLCubeRenderTarget(512, { type: THREE.HalfFloatType });
+  const cubeCam = new THREE.CubeCamera(1, 6000, cubeRT);
+  cubeCam.position.set(0, 6, 0);
+  cubeCam.update(renderer, skyOnly);
+  scene.background = cubeRT.texture;
+  scene.backgroundIntensity = 0.48;
   skyClone.geometry.dispose(); skyClone.material.dispose();
   bounce.geometry.dispose(); bounce.material.dispose();
   pmrem.dispose();
 
-  scene.fog = new THREE.FogExp2(0x8ea6bd, 0.0042);
+  scene.fog = new THREE.FogExp2(0x76889c, 0.0036);
 
   /* ---------------- sun ---------------- */
-  const sun = new THREE.DirectionalLight(0xfff0d4, 4.6);
+  const sun = new THREE.DirectionalLight(0xffd39a, 7.4);
   sun.position.copy(sunDir).multiplyScalar(120);
   sun.target.position.set(0, 0, 0);
   scene.add(sun.target);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   const sc = sun.shadow.camera;
-  sc.left = -46; sc.right = 46; sc.top = 46; sc.bottom = -46; sc.near = 40; sc.far = 260;
-  sun.shadow.bias = -0.0006;
-  sun.shadow.normalBias = 0.035;
+  sc.left = -34; sc.right = 34; sc.top = 34; sc.bottom = -34; sc.near = 55; sc.far = 210;
+  sun.shadow.bias = -0.0009;
+  sun.shadow.normalBias = 0.085;
   sun.shadow.radius = 1.6;
   scene.add(sun);
 
-  const hemi = new THREE.HemisphereLight(0xa8c4e0, 0x3a3128, 0.14);
+  const hemi = new THREE.HemisphereLight(0x93b8e0, 0x403624, 0.42);
   scene.add(hemi);
 
   /* =================================================================== GROUND */
@@ -241,7 +282,7 @@ export function buildScene(renderer) {
     const uv = g.attributes.uv;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 1400, uv.getY(i) * 1400);
     g.rotateX(-Math.PI / 2);
-    const m = new THREE.MeshStandardMaterial({ color: 0x4a4740, roughness: 0.96, metalness: 0.0, envMapIntensity: 0.7 });
+    const m = new THREE.MeshStandardMaterial({ color: 0x3b382f, roughness: 0.97, metalness: 0.0, envMapIntensity: 0.6 });
     const far = new THREE.Mesh(g, m);
     far.position.y = -0.06;
     scene.add(far);
@@ -257,8 +298,8 @@ export function buildScene(renderer) {
         blocks.push(placed(cylGeo(1.7, 2.4, ch, 10, 1), Math.cos(a) * d + (r() - 0.5) * 20, ch / 2, Math.sin(a) * d + (r() - 0.5) * 20));
       }
     }
-    const bm = new THREE.Mesh(mergeSafe(blocks), new THREE.MeshStandardMaterial({ color: 0x5d6068, roughness: 0.9, metalness: 0.15, envMapIntensity: 0.8 }));
-    scene.add(bm);
+    const bm0 = 1; const bm = new THREE.Mesh(mergeSafe(blocks), new THREE.MeshStandardMaterial({ color: 0x2b3036, roughness: 0.96, metalness: 0.1, envMapIntensity: 0.40 }));
+    bm.name = 'skyline'; scene.add(bm);
   }
   // puddle / wet asphalt at (16,0,14)
   {
@@ -267,31 +308,38 @@ export function buildScene(renderer) {
     for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 14, uv.getY(i) * 10);
     g.rotateX(-Math.PI / 2);
     const m = M.puddle.clone();
-    m.alphaMap = TEX.softSprite(128, 0.85, 31);
+    const am = TEX.softSprite(256, 0.38, 31);
+    am.wrapS = am.wrapT = THREE.ClampToEdgeWrapping;
+    am.repeat.set(1 / 14, 1 / 10); am.needsUpdate = true;
+    m.alphaMap = am;
     m.transparent = true;
-    m.envMapIntensity = 2.8;
+    m.depthWrite = false;
+    m.map = null;                       // for a metal the albedo IS the reflectance tint
+    m.color.setRGB(0.20, 0.22, 0.26);
+    m.roughness = 0.04; m.metalness = 1.0;
+    m.envMapIntensity = 1.15;
     const mesh = new THREE.Mesh(g, m);
-    mesh.position.set(16, 0.015, 14);
-    mesh.renderOrder = 2;
+    mesh.position.set(16, 0.016, 14);
+    mesh.renderOrder = 4;
     scene.add(mesh);
-    // damp halo
-    const g2 = g.clone();
+    // damp halo: darkens and smooths the asphalt around the water
     const m2 = new THREE.MeshStandardMaterial({
-      color: 0x14161a, roughness: 0.55, metalness: 0.0, transparent: true, opacity: 0.75,
-      alphaMap: TEX.softSprite(128, 0.7, 131), depthWrite: false, envMapIntensity: 1.2,
+      color: 0x1b1e22, roughness: 0.28, metalness: 0.35, transparent: true, opacity: 0.55,
+      alphaMap: (() => { const t = TEX.softSprite(256, 0.55, 131); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.repeat.set(1 / 14, 1 / 10); t.needsUpdate = true; return t; })(),
+      depthWrite: false, envMapIntensity: 0.9,
     });
-    const halo = new THREE.Mesh(g2, m2);
-    halo.scale.set(1.35, 1, 1.35);
-    halo.position.set(16, 0.008, 14);
-    halo.renderOrder = 1;
+    const halo = new THREE.Mesh(g.clone(), m2);
+    halo.scale.set(1.28, 1, 1.28);
+    halo.position.set(16, 0.009, 14);
+    halo.renderOrder = 3;
     scene.add(halo);
   }
   // oil stains
   {
     const r = rng(7788);
     const parts = [];
-    for (let i = 0; i < 14; i++) {
-      const s = 1.2 + r() * 3.4;
+    for (let i = 0; i < 22; i++) {
+      const s = 1.5 + r() * 3.2;
       const pg = new THREE.PlaneGeometry(s, s * (0.7 + r() * 0.6));
       pg.rotateX(-Math.PI / 2);
       parts.push(placed(pg, -28 + r() * 56, 0.012, -26 + r() * 52, 0, r() * 6.28, 0));
@@ -360,7 +408,7 @@ export function buildScene(renderer) {
   }
   // roof deck
   {
-    const roof = new THREE.Mesh(placed(boxGeo(25.2, 0.30, 17.2), 0, 8.15, 0), M.corr);
+    const roof = new THREE.Mesh(placed(boxGeo(25.2, 0.30, 17.2), 0, 8.15, 0), M.corr); roof.name = 'roof';
     roof.castShadow = true; roof.receiveShadow = true;
     scene.add(roof);
     addBoxCollider(25.2, 0.30, 17.2, 0, 8.15, 0);
@@ -370,7 +418,7 @@ export function buildScene(renderer) {
     pp.push(placed(boxGeo(25.2, 0.55, 0.22), 0, 8.55, -8.5));
     pp.push(placed(boxGeo(0.22, 0.55, 17.2), 12.5, 8.55, 0));
     pp.push(placed(boxGeo(0.22, 0.55, 17.2), -12.5, 8.55, 0));
-    const ppm = new THREE.Mesh(mergeSafe(pp), M.steel);
+    const ppm = new THREE.Mesh(mergeSafe(pp), M.steel); ppm.name = 'parapet';
     ppm.castShadow = true; ppm.receiveShadow = true; scene.add(ppm);
   }
   // 16 roof beams (I profile) + bracing
@@ -392,7 +440,7 @@ export function buildScene(renderer) {
       }
     }
     const m = new THREE.Mesh(mergeSafe(parts), M.steel);
-    m.castShadow = true; m.receiveShadow = true;
+    m.name = 'beams'; m.castShadow = true; m.receiveShadow = true;
     scene.add(m);
   }
   // 4 interior pillars
@@ -429,12 +477,12 @@ export function buildScene(renderer) {
         steelParts.push(placed(cylGeo(0.035, 0.035, 1.12, 8, 1), run.a[0] + dx * t, 4.56, run.a[1] + dz * t));
       }
       const cx = (run.a[0] + run.b[0]) / 2, cz = (run.a[1] + run.b[1]) / 2;
-      for (const yy of [5.08, 4.45]) steelParts.push(placed(cylGeo(0.030, 0.030, len, 8, 1), cx, yy, cz, Math.PI / 2, ang, 0));
+      for (const yy of [5.08, 4.45]) steelParts.push(placedRail(cylGeo(0.030, 0.030, len, 8, 1), cx, yy, cz, ang));
       steelParts.push(placed(boxGeo(len, 0.14, 0.04), cx, 4.07, cz, 0, ang - Math.PI / 2, 0));
     }
     // stair up to the mezzanine
     const sx = 10.2;
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 22; i++) {
       const y = 0.28 + i * 0.27;
       const z = 0.6 - i * 0.30;
       grateParts.push(placed(boxGeo(1.5, 0.05, 0.30), sx, y, z));
@@ -469,7 +517,7 @@ export function buildScene(renderer) {
   }
 
   /* ======================================================= EXTERIOR BUILDINGS */
-  const corrParts = [], corrBlueParts = [], rustParts = [], woodParts = [], plasticParts = [];
+  const corrParts = [], corrBlueParts = [], rustParts = [], woodParts = [], plasticParts = [], rubberParts = [];
   function container(len, hgt, dep, x, y, z, ry, blue) {
     const arr = blue ? corrBlueParts : corrParts;
     arr.push(placed(boxGeo(len, hgt, dep), x, y + hgt / 2, z, 0, ry, 0));
@@ -527,10 +575,11 @@ export function buildScene(renderer) {
         posts.push(placed(cylGeo(0.055, 0.06, 2.55, 7, 1), px, 1.27, pz));
       }
       const cx = (s.a[0] + s.b[0]) / 2, cz = (s.a[1] + s.b[1]) / 2;
-      posts.push(placed(cylGeo(0.04, 0.04, len, 7, 1), cx, 2.38, cz, Math.PI / 2, ang, 0));
+      posts.push(placedRail(cylGeo(0.04, 0.04, len, 7, 1), cx, 2.38, cz, ang));
+      posts.push(placedRail(cylGeo(0.035, 0.035, len, 6, 1), cx, 0.18, cz, ang));
     }
     const pm = new THREE.Mesh(mergeSafe(posts), M.steel);
-    pm.castShadow = true; scene.add(pm);
+    pm.name = 'fencePosts'; pm.castShadow = true; scene.add(pm);
     const fm = new THREE.Mesh(mergeSafe(panels), M.fence);
     scene.add(fm);
     scene.userData.fenceSegments = count;
@@ -550,23 +599,18 @@ export function buildScene(renderer) {
       parts.push(placed(cylGeo(0.20, 0.26, 0.35, 10, 1), x, 0.17, z));
       parts.push(placed(cylGeo(0.10, 0.135, 7.0, 10, 1), x, 3.6, z));
       // arm
-      parts.push(placed(cylGeo(0.075, 0.075, 1.5, 8, 1), x + Math.sin(dir) * 0.62, 7.12, z + Math.cos(dir) * 0.62, Math.PI / 2, dir, 0).rotateY(0));
+      parts.push(placedRail(cylGeo(0.075, 0.075, 1.5, 8, 1), x + Math.sin(dir) * 0.62, 7.12, z + Math.cos(dir) * 0.62, dir));
       parts.push(placed(boxGeo(0.34, 0.16, 0.70), x + Math.sin(dir) * 1.32, 6.95, z + Math.cos(dir) * 1.32, 0, dir, 0));
       lens.push(placed(boxGeo(0.28, 0.04, 0.58), x + Math.sin(dir) * 1.32, 6.865, z + Math.cos(dir) * 1.32, 0, dir, 0));
       addBoxCollider(0.27, 7.0, 0.27, x, 3.5, z);
     }
     const pm = new THREE.Mesh(mergeSafe(parts), M.steel);
-    pm.castShadow = true; pm.receiveShadow = true; scene.add(pm);
+    pm.name = 'lamps'; pm.castShadow = true; pm.receiveShadow = true; scene.add(pm);
     const lm = new THREE.Mesh(mergeSafe(lens), M.lamp);
     scene.add(lm);
     scene.userData.lampCount = spots.length;
-    // a couple of real exterior lights where they read best
-    for (const [x, z] of [[6, 26], [24, 24]]) {
-      const l = new THREE.PointLight(0xffc98a, 90, 26, 2);
-      l.position.set(x, 6.7, z);
-      scene.add(l);
-      lampLights.push(l);
-    }
+    // exterior lamps read through their emissive lenses + bloom; no analytic lights
+    // (each extra point light is evaluated per pixel for the whole frame here)
   }
 
   /* ================================================ INTERIOR LOCAL LIGHTS (4) */
@@ -579,15 +623,15 @@ export function buildScene(renderer) {
       shades.push(placed(cylGeo(0.42, 0.16, 0.30, 12, 1), x, y + 0.20, z));
       shades.push(placed(cylGeo(0.035, 0.035, 0.85, 6, 1), x, y + 0.78, z));
       emis.push(placed(new THREE.SphereGeometry(0.17, 10, 8), x, y - 0.02, z));
-      const l = new THREE.PointLight(0xffd2a0, 130, 21, 2);
+      const l = new THREE.PointLight(0xffbe7a, 120, 25, 1.9);
       l.position.set(x, y - 0.08, z);
       scene.add(l);
       interiorLights.push(l);
     }
     const sm = new THREE.Mesh(mergeSafe(shades), M.steel);
-    sm.castShadow = true; scene.add(sm);
+    sm.name = 'shades'; sm.castShadow = true; scene.add(sm);
     const em = new THREE.Mesh(mergeSafe(emis), new THREE.MeshStandardMaterial({
-      color: 0x120d06, emissive: new THREE.Color(0xffd7a2), emissiveIntensity: 14, roughness: 0.4, metalness: 0,
+      color: 0x120d06, emissive: new THREE.Color(0xffd7a2), emissiveIntensity: 6.5, roughness: 0.4, metalness: 0,
     }));
     scene.add(em);
     // work light on a tripod, warm, inside
@@ -597,15 +641,16 @@ export function buildScene(renderer) {
     tri.push(placed(cylGeo(0.03, 0.03, 1.6, 6, 1), -9.0, 0.8, 6.0, 0.0, 0, 0.2));
     tri.push(placed(boxGeo(0.44, 0.26, 0.16), -9.0, 1.68, 6.05));
     const tm = new THREE.Mesh(mergeSafe(tri), M.steel);
-    tm.castShadow = true; scene.add(tm);
+    tm.name = 'tripod'; tm.castShadow = true; scene.add(tm);
     const tl = new THREE.Mesh(placed(boxGeo(0.38, 0.20, 0.03), -9.0, 1.68, 6.15), new THREE.MeshStandardMaterial({
-      color: 0x1a1509, emissive: new THREE.Color(0xfff0d0), emissiveIntensity: 22, roughness: 0.3, metalness: 0,
+      color: 0x1a1509, emissive: new THREE.Color(0xfff0d0), emissiveIntensity: 9, roughness: 0.3, metalness: 0,
     }));
     scene.add(tl);
-    const wl = new THREE.PointLight(0xffe6c0, 150, 20, 2);
+    const wl = new THREE.PointLight(0xffd79c, 130, 28, 1.8);
     wl.position.set(-9.0, 1.72, 6.4);
     scene.add(wl);
     interiorLights.push(wl);
+
   }
 
   /* ================================================== DEBRIS / CLUTTER (>=60) */
@@ -687,29 +732,31 @@ export function buildScene(renderer) {
     for (let i = 0; i < 4; i++) {
       const bx = 13.5 + r() * 3, bz = 8 + r() * 6;
       for (let k = 0; k < 3 + Math.floor(r() * 3); k++) {
-        plasticParts.push(placed(new THREE.TorusGeometry(0.34, 0.14, 8, 14), bx, 0.16 + k * 0.28, bz, Math.PI / 2, 0, 0));
+        rubberParts.push(placed(new THREE.TorusGeometry(0.34, 0.14, 8, 14), bx, 0.16 + k * 0.28, bz, Math.PI / 2, 0, 0));
       }
     }
   }
 
   /* --------------------- merge static groups into few draw calls -------------- */
-  function addMerged(parts, mat, cast, receive) {
+  function addMerged(parts, mat, cast, receive, name) {
     if (!parts.length) return null;
     const g = mergeSafe(parts);
     const m = new THREE.Mesh(g, mat);
+    m.name = name || 'merged';
     m.castShadow = !!cast; m.receiveShadow = !!receive;
     scene.add(m);
     parts.length = 0;
     return m;
   }
-  addMerged(wallParts, M.wall, true, true);
-  addMerged(steelParts, M.steel, true, true);
-  addMerged(grateParts, M.grate, true, true);
-  addMerged(corrParts, M.corr, true, true);
-  addMerged(corrBlueParts, M.corrBlue, true, true);
-  addMerged(rustParts, M.rust, true, true);
-  addMerged(woodParts, M.wood, true, true);
-  const plasticMesh = addMerged(plasticParts, M.plastic, true, true);
+  addMerged(wallParts, M.wall, true, true, 'wall');
+  addMerged(steelParts, M.steel, true, true, 'steel');
+  addMerged(grateParts, M.grate, true, true, 'grate');
+  addMerged(corrParts, M.corr, true, true, 'corr');
+  addMerged(corrBlueParts, M.corrBlue, true, true, 'corrBlue');
+  addMerged(rustParts, M.rust, true, true, 'rust');
+  addMerged(woodParts, M.wood, true, true, 'wood');
+  addMerged(rubberParts, M.rubber, true, true, 'rubber');
+  const plasticMesh = addMerged(plasticParts, M.plastic, true, true, 'plastic');
   if (plasticMesh) plasticMesh.material.side = THREE.DoubleSide;
   {
     const gm = new THREE.Mesh(mergeSafe(glassParts), M.glass);
@@ -738,7 +785,7 @@ export function buildScene(renderer) {
           float ex = 1.0 - smoothstep(0.40, 1.0, abs(vL.x)/uHalf.x);
           float ey = 1.0 - smoothstep(0.40, 1.0, abs(vL.y)/uHalf.y);
           float a = fade * ex * ey * uInt;
-          gl_FragColor = vec4(uColor * a, a);
+          gl_FragColor = vec4(uColor * a, 1.0);
         }`,
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
     });
@@ -756,8 +803,9 @@ export function buildScene(renderer) {
       scene.add(mesh);
       shafts.push(mesh);
     };
-    for (const cz of [-5.4, -1.8, 1.8, 5.4]) mkShaft(11.7, 5.3, cz, 2.5, 1.75, 15, 0.16);
-    mkShaft(0, 3.0, 7.7, 9.6, 5.9, 17, 0.085);
+    for (const cz of [-5.4, -1.8, 1.8, 5.4]) mkShaft(-11.6, 5.3, cz, 2.5, 1.75, 16, 0.42);
+    mkShaft(0, 3.0, 7.6, 9.8, 5.9, 20, 0.40);
+    mkShaft(5.9, 5.9, 7.6, 3.0, 1.8, 14, 0.30);
   }
 
   return {

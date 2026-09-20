@@ -92,7 +92,7 @@ export function makeMaps(scene, name, size, fn, opts = {}) {
     t.name = name + '_' + tname;
     t.wrapU = Texture.WRAP_ADDRESSMODE; t.wrapV = Texture.WRAP_ADDRESSMODE;
     t.gammaSpace = gamma;
-    t.anisotropicFilteringLevel = 4;
+    t.anisotropicFilteringLevel = 1;
     return t;
   };
   return { albedo: mk(alb, 'alb', true), normal: mk(nrm, 'nrm', false), orm: mk(orm, 'orm', false) };
@@ -121,14 +121,14 @@ export function makeAlphaTexture(scene, name, size, fn) {
 export function recipeConcreteExt(u, v, o) {
   const x = u * 8, y = v * 8;
   const grit = fbm(x * 12, y * 12, 96, 11, 4);
-  const agg = 1 - smoothstep(0.02, 0.22, worley(x * 10, y * 10, 80, 3));
+  const agg = (1 - smoothstep(0.04, 0.30, worley(x * 10, y * 10, 80, 3))) * 0.55;
   const macro = fbm(x, y, 8, 5, 5);
   const stain = smoothstep(0.52, 0.78, fbm(x * 1.6, y * 1.6, 13, 23, 4));
   const crackRaw = ridged(x * 2.2, y * 2.2, 18, 41, 4);
   const crack = smoothstep(0.80, 0.97, crackRaw);
   let h = grit * 0.35 + agg * 0.28 + macro * 0.4 - crack * 0.9;
-  const base = 0.30 + macro * 0.16 + grit * 0.10 + agg * 0.12;
-  let r = base * 1.02, g = base * 1.0, b = base * 0.95;
+  const base = 0.175 + macro * 0.125 + grit * 0.075 + agg * 0.085;
+  let r = base * 1.0, g = base * 1.005, b = base * 1.01;
   // manchas de aceite/humedad
   r = lerp(r, r * 0.42, stain); g = lerp(g, g * 0.44, stain); b = lerp(b, b * 0.52, stain);
   // arido claro
@@ -147,12 +147,12 @@ export function recipeConcreteWall(u, v, o) {
   const macro = fbm(x * 1.2, y * 1.2, 8, 17, 5);
   const streak = fbm(x * 5, y * 0.35, 48, 29, 4);           // chorretones verticales
   const drip = smoothstep(0.55, 0.85, streak) * smoothstep(0.1, 0.6, v);
-  const holes = 1 - smoothstep(0.0, 0.06, worley(x * 14, y * 14, 96, 53));
+  const holes = (1 - smoothstep(0.0, 0.10, worley(x * 14, y * 14, 96, 53))) * 0.45;
   const seamY = Math.abs(((v * 3) % 1) - 0.5);
   const seam = 1 - smoothstep(0.0, 0.035, seamY);
   let h = grit * 0.3 + macro * 0.45 - holes * 0.8 - seam * 0.55;
-  const base = 0.40 + macro * 0.17 + grit * 0.08;
-  let r = base, g = base * 0.985, b = base * 0.945;
+  const base = 0.285 + macro * 0.125 + grit * 0.055;
+  let r = base * 1.005, g = base, b = base * 0.985;
   r = lerp(r, r * 0.55, drip * 0.8); g = lerp(g, g * 0.56, drip * 0.8); b = lerp(b, b * 0.60, drip * 0.8);
   const rust = smoothstep(0.72, 0.95, fbm(x * 3, y * 3, 24, 88, 4)) * 0.6;
   r = lerp(r, 0.32, rust); g = lerp(g, 0.17, rust); b = lerp(b, 0.09, rust);
@@ -173,7 +173,7 @@ export function recipeConcretePolished(u, v, o) {
   const joint = Math.max(1 - smoothstep(0.0, 0.012, jx), 1 - smoothstep(0.0, 0.012, jy));
   const dirt = smoothstep(0.45, 0.85, fbm(x * 2.2, y * 2.2, 16, 63, 4));
   let h = grit * 0.16 + macro * 0.22 - joint * 1.0;
-  const base = 0.33 + macro * 0.13 + swirl * 0.07 + grit * 0.04;
+  const base = 0.215 + macro * 0.11 + swirl * 0.06 + grit * 0.035;
   let r = base, g = base * 0.99, b = base * 0.96;
   r = lerp(r, r * 0.55, dirt * 0.7); g = lerp(g, g * 0.55, dirt * 0.7); b = lerp(b, b * 0.58, dirt * 0.7);
   r *= (1 - joint * 0.55); g *= (1 - joint * 0.55); b *= (1 - joint * 0.55);
@@ -221,16 +221,16 @@ export function recipeRust(u, v, o) {
   const x = u * 4, y = v * 4;
   const macro = fbm(x * 2.2, y * 2.2, 16, 101, 5);
   const fine = fbm(x * 18, y * 18, 128, 55, 4);
-  const flake = 1 - smoothstep(0.02, 0.2, worley(x * 12, y * 12, 96, 31));
-  const rustMask = clamp01(smoothstep(0.35, 0.72, macro) + flake * 0.35);
+  const flake = (1 - smoothstep(0.05, 0.34, worley(x * 7, y * 7, 56, 31))) * 0.6;
+  const rustMask = clamp01(smoothstep(0.30, 0.86, macro) * 0.92 + flake * 0.14);
   const deep = smoothstep(0.65, 0.95, macro);
   let h = fine * 0.35 + macro * 0.35 + flake * 0.35 - deep * 0.4;
   // acero pintado que queda
-  let pr = 0.30 + macro * 0.12, pg = 0.32 + macro * 0.12, pb = 0.33 + macro * 0.12;
+  let pr = 0.185 + macro * 0.085, pg = 0.198 + macro * 0.085, pb = 0.205 + macro * 0.085;
   // oxido
-  const rr = lerp(0.45, 0.24, deep) + fine * 0.14;
-  const rg = lerp(0.20, 0.10, deep) + fine * 0.07;
-  const rb = lerp(0.075, 0.045, deep) + fine * 0.03;
+  const rr = lerp(0.325, 0.185, deep) + fine * 0.10;
+  const rg = lerp(0.168, 0.086, deep) + fine * 0.055;
+  const rb = lerp(0.082, 0.050, deep) + fine * 0.026;
   o[0] = lerp(pr, rr, rustMask); o[1] = lerp(pg, rg, rustMask); o[2] = lerp(pb, rb, rustMask);
   o[3] = h;
   o[4] = clamp01(lerp(0.45 + fine * 0.15, 0.93 - fine * 0.08, rustMask));
@@ -244,8 +244,8 @@ export function recipeWood(u, v, o) {
   const warp = fbm(x * 2.5, y * 0.7, 24, 5, 4) * 1.6;
   const rings = Math.abs(Math.sin((y * 5.5 + warp) * Math.PI * 2.2));
   const grain = fbm(x * 3, y * 42, 96, 67, 3);
-  const knotD = worley(x * 1.4, y * 1.4, 12, 19);
-  const knot = 1 - smoothstep(0.0, 0.18, knotD);
+  const knotD = worley(x * 0.55, y * 0.55, 4, 19);
+  const knot = (1 - smoothstep(0.0, 0.10, knotD)) * 0.7;
   const dirt = smoothstep(0.48, 0.9, fbm(x * 2, y * 2, 16, 83, 4));
   const t = clamp01(rings * 0.72 + grain * 0.28);
   let r = lerp(0.46, 0.235, t), g = lerp(0.33, 0.145, t), b = lerp(0.195, 0.082, t);
@@ -303,7 +303,7 @@ export function recipeSteel(u, v, o) {
 export function recipeGravel(u, v, o) {
   const x = u * 5, y = v * 5;
   const cell = worley(x * 7, y * 7, 40, 13);
-  const stone = 1 - smoothstep(0.0, 0.3, cell);
+  const stone = (1 - smoothstep(0.03, 0.34, cell)) * 0.8;
   const grit = fbm(x * 20, y * 20, 128, 87, 4);
   const macro = fbm(x * 2, y * 2, 16, 33, 4);
   const tone = 0.20 + stone * 0.18 + grit * 0.09 + macro * 0.08;

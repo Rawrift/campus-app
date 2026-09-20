@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 import {
   MeshBuilder, Mesh, Vector3, Matrix, Quaternion, Color3, VertexBuffer,
-  StandardMaterial, Texture, MirrorTexture, Plane,
+  StandardMaterial, Texture,
 } from '@babylonjs/core';
 import { makeBox, merge, bakeUV, boxUV, trs } from './meshutil.js';
 import { makeAlphaTexture } from './tex.js';
@@ -16,7 +16,7 @@ export const HX = 12, HZ = 8, WH = 8, TH = 0.35;   // semiancho X, semiprofundo 
 export function buildWorld(scene, M, colliders) {
   const rnd = mulberry32(20260920);
   const R = (a, b) => a + (b - a) * rnd();
-  const out = { casters: [], receivers: [], lampHeads: [], mirror: null };
+  const out = { casters: [], receivers: [], lampHeads: [] };
   const col = (x, y, z, w, h, d, ry = 0) => colliders.push({ x, y, z, w, h, d, ry });
 
   // ======================= SUELO EXTERIOR ==============================
@@ -43,15 +43,9 @@ export function buildWorld(scene, M, colliders) {
   const puddle = MeshBuilder.CreateGround('puddle', { width: 14, height: 10, subdivisions: 1 }, scene);
   puddle.position.set(16, 0.062, 14);
   boxUV(puddle, 3);
-  const mirror = new MirrorTexture('puddleMirror', 384, scene, true);
-  mirror.mirrorPlane = new Plane(0, -1, 0, 0.062);
-  mirror.level = 0.85;
-  mirror.adaptiveBlurKernel = 12;
-  M.wet.reflectionTexture = mirror;
-  M.wet.environmentIntensity = 1.0;
+  M.wet.environmentIntensity = 1.35;
   puddle.material = M.wet;
   puddle.freezeWorldMatrix();
-  out.mirror = mirror;
 
   // ======================= NAVE: MUROS =================================
   const wallsG = [];
@@ -85,8 +79,13 @@ export function buildWorld(scene, M, colliders) {
   // fachada +Z: dos machones y dintel (porton 10 x 6)
   wallsG.push(makeBox(scene, 'wf1', eX - 5, WH, TH, -(5 + eX) / 2, WH / 2, eZ));
   col(-(5 + eX) / 2, WH / 2, eZ, eX - 5, WH, TH);
-  wallsG.push(makeBox(scene, 'wf2', eX - 5, WH, TH, (5 + eX) / 2, WH / 2, eZ));
-  col((5 + eX) / 2, WH / 2, eZ, eX - 5, WH, TH);
+  // machon estrecho + segundo hueco de carga (4,7 x 4,6) + machon de esquina
+  wallsG.push(makeBox(scene, 'wf2a', 0.7, WH, TH, 5.35, WH / 2, eZ));
+  col(5.35, WH / 2, eZ, 0.7, WH, TH);
+  wallsG.push(makeBox(scene, 'wf2b', eX - 10.4, WH, TH, (10.4 + eX) / 2, WH / 2, eZ));
+  col((10.4 + eX) / 2, WH / 2, eZ, eX - 10.4, WH, TH);
+  wallsG.push(makeBox(scene, 'wf2c', 4.7, WH - 4.6, TH, 8.05, (WH + 4.6) / 2, eZ));
+  col(8.05, (WH + 4.6) / 2, eZ, 4.7, WH - 4.6, TH);
   wallsG.push(makeBox(scene, 'wf3', 10, WH - 6, TH, 0, (WH + 6) / 2, eZ));
   col(0, (WH + 6) / 2, eZ, 10, WH - 6, TH);
   // pilares interiores
@@ -278,7 +277,7 @@ export function buildWorld(scene, M, colliders) {
   out.fenceSegments = seg;
   const fencePanels = Mesh.MergeMeshes(panelG.map(p => { p.bakeCurrentTransformIntoVertices(); return p; }), true, true);
   fencePanels.name = 'fencePanels'; fencePanels.material = M.fence;
-  fencePanels.isPickable = false; fencePanels.freezeWorldMatrix();
+  fencePanels.isPickable = false; fencePanels.receiveShadows = false; fencePanels.freezeWorldMatrix();
   const fencePosts = merge('fencePosts', postG, M.metal, scene, 0.6);
   out.casters.push(fencePosts);
 

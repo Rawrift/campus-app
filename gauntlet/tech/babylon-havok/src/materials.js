@@ -17,7 +17,7 @@ function pbr(scene, name, maps, o = {}) {
   m.albedoColor = o.color ?? new Color3(1, 1, 1);
   m.bumpTexture.level = o.bump ?? 1.0;
   m.maxSimultaneousLights = o.lights ?? 6;
-  m.enableSpecularAntiAliasing = true;
+  m.enableSpecularAntiAliasing = false;
   m.forceIrradianceInFragment = false;
   if (o.uv) { for (const t of [maps.albedo, maps.normal, maps.orm]) { t.uScale = o.uv; t.vScale = o.uv; } }
   return m;
@@ -78,49 +78,53 @@ export function buildMaterials(scene) {
     o[4] = clamp01(0.045 + macro * 0.10);
     o[5] = 0.0;
     o[6] = 1.0;
-  }, { normalStrength: 2.0, aoAmount: 0.4 }), { bump: 0.45, lights: 2 });
+  }, { normalStrength: 2.0, aoAmount: 0.4 }), { bump: 0.42, lights: 2 });
+  wet.metallicF0Factor = 1.0;
+  wet.albedoColor = new Color3(0.35, 0.38, 0.42);
   M.wet = wet;
 
   // --- metal emisivo de luminarias ---
   const lamp = new PBRMaterial('m_lampGlass', scene);
   lamp.albedoColor = new Color3(0.05, 0.05, 0.05);
   lamp.metallic = 0.0; lamp.roughness = 0.25;
-  lamp.emissiveColor = new Color3(3.4, 2.55, 1.45);
+  lamp.emissiveColor = new Color3(2.6, 1.85, 0.95);
   lamp.maxSimultaneousLights = 2;
   M.lampOn = lamp;
 
   const lampOff = new PBRMaterial('m_lampOff', scene);
   lampOff.albedoColor = new Color3(0.55, 0.55, 0.52);
   lampOff.metallic = 0.1; lampOff.roughness = 0.35;
-  lampOff.emissiveColor = new Color3(0.55, 0.42, 0.22);
+  lampOff.emissiveColor = new Color3(0.16, 0.115, 0.05);
   lampOff.maxSimultaneousLights = 2;
   M.lampOff = lampOff;
 
   // --- malla de simple torsion (alpha test) ---
   const meshTex = makeAlphaTexture(scene, 'chainlink', 256, (u, v, o) => {
-    const n = 16;
+    const n = 7;
     const a = Math.abs(((u * n + v * n) % 1) - 0.5);
     const b = Math.abs(((u * n - v * n) % 1) - 0.5);
-    const w = 0.13;
-    const on = (a < w ? 1 : 0) || (b < w ? 1 : 0);
-    const shade = 0.5 + 0.5 * (1 - Math.min(a, b) / w);
-    o[0] = 0.34 * shade; o[1] = 0.35 * shade; o[2] = 0.36 * shade;
-    o[3] = on ? 1 : 0;
+    const w = 0.16;
+    const d = Math.min(a, b);
+    const on = clamp01((w - d) / 0.05);
+    const shade = 0.45 + 0.55 * on;
+    o[0] = 0.30 * shade; o[1] = 0.31 * shade; o[2] = 0.325 * shade;
+    o[3] = on;
   });
-  meshTex.uScale = 3; meshTex.vScale = 2;
+  meshTex.uScale = 2.2; meshTex.vScale = 1.5;
   const fence = new PBRMaterial('m_fence', scene);
   fence.albedoTexture = meshTex;
   fence.useAlphaFromAlbedoTexture = true;
   fence.transparencyMode = PBRMaterial.MATERIAL_ALPHATEST;
-  fence.alphaCutOff = 0.4;
+  fence.alphaCutOff = 0.34;
   fence.metallic = 0.85; fence.roughness = 0.55;
   fence.backFaceCulling = false;
-  fence.maxSimultaneousLights = 2;
+  fence.maxSimultaneousLights = 1;
   M.fence = fence;
 
   // --- cartel con texto (canvas 2D) ---
   const dt = new DynamicTexture('signTex', { width: 512, height: 256 }, scene, true);
   const ctx = dt.getContext();
+  ctx.setTransform(-1, 0, 0, -1, 512, 256);   // la cara +Z de la caja usa UV girada 180
   ctx.fillStyle = '#c8501f'; ctx.fillRect(0, 0, 512, 256);
   ctx.fillStyle = 'rgba(0,0,0,0.20)';
   for (let i = 0; i < 2600; i++) {
