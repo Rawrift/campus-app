@@ -15,25 +15,39 @@ Campo campo(vec2 uv){
   // burbujas de aire contra el encofrado, dos tamaños
   float burb = max(poros(p * 34.0, vec2(34.0*S), 0.20, 0.30, 17.0),
                    poros(p * 78.0, vec2(78.0*S), 0.28, 0.24, 19.0) * 0.55);
-  // microfisuras de retraccion, solo en zonas concretas
-  Celular re = celular(p * 6.0, vec2(6.0*S), 1.0, 23.0);
-  float fisura = (1.0 - smoothstep(0.0, 0.030, bordeCelda(re)))
-               * smoothstep(0.44, 0.82, fbm(p * 2.5, 2.5*S, 3, 0.5, 29.0));
+  // microfisuras de retraccion: dominio DEFORMADO para que no sean poligonos
+  // rectos, muy finas y solo en zonas puntuales
+  Celular re = celular(deformar(p*6.0, vec2(6.0*S), 0.26, 2, 23.0), vec2(6.0*S), 1.0, 23.0);
+  float fisura = (1.0 - smoothstep(0.0, 0.013, bordeCelda(re)))
+               * smoothstep(0.62, 0.93, fbm(p * 2.5, 2.5*S, 3, 0.5, 29.0));
+
+  // moteado mineral: granos de arena y de cemento. Es lo que hace que de cerca
+  // se lea como hormigon y no como un plano gris con puntos.
+  Celular sp = celular(p * 150.0, vec2(150.0*S), 1.0, 43.0);
+  float mote    = smoothstep(0.55, 0.05, sp.f1) * fract(sp.id*7.7);
+  float moteOsc = step(0.62, fract(sp.id*3.3)) * smoothstep(0.45, 0.05, sp.f1);
+  Celular sp2 = celular(p * 66.0, vec2(66.0*S), 1.0, 47.0);
+  float mote2 = smoothstep(0.50, 0.08, sp2.f1) * step(0.55, fract(sp2.id*5.1));
   // juntas de encofrado: lineas rectas muy tenues
   float enc = pow(abs(sin(uv.y * PI * 3.0 * S)), 34.0);
 
-  c.altura = 0.68 + medio*0.070 + grano*0.030 + micro*0.012
-           + (arido-0.5)*0.028 - burb*0.50 - fisura*0.20 - enc*0.05;
+  c.altura = 0.68 + medio*0.070 + grano*0.036 + micro*0.016
+           + (arido-0.5)*0.030 + mote*0.008 + mote2*0.006
+           - burb*0.26 - fisura*0.11 - enc*0.05;
 
-  vec3 col = vec3(0.585,0.588,0.578) * (0.84+0.32*medio) * (0.90+0.20*macro);
-  col = mezclaLin(col, vec3(0.49,0.49,0.51), smoothstep(0.58,0.95,arido)*0.30);
-  col *= 1.0 - burb*0.38;
-  col = mezclaLin(col, vec3(0.30,0.30,0.31), fisura*0.65);
-  col *= 0.94 + 0.12*grano;
+  vec3 col = vec3(0.585,0.588,0.578) * (0.80+0.40*medio) * (0.88+0.24*macro);
+  col = mezclaLin(col, vec3(0.470,0.470,0.492), smoothstep(0.52,0.92,arido)*0.42);
+  col = mezclaLin(col, vec3(0.715,0.710,0.688), mote*0.42);        // granos claros
+  col = mezclaLin(col, vec3(0.330,0.326,0.322), moteOsc*0.38);     // granos oscuros
+  col = mezclaLin(col, vec3(0.640,0.630,0.600), mote2*0.26);
+  col *= 1.0 - burb*0.15;
+  col = mezclaLin(col, vec3(0.395,0.392,0.400), fisura*0.45);
+  col *= 0.90 + 0.20*grano;
+  col *= 0.95 + 0.10*micro;
 
   c.base  = col;
-  c.rug   = 0.60 + 0.20*grano + 0.10*medio + burb*0.18 - macro*0.05;
-  c.cav   = burb*0.85 + fisura*0.55 + enc*0.3;
+  c.rug   = 0.60 + 0.20*grano + 0.10*medio + burb*0.10 - macro*0.05 + mote*0.10;
+  c.cav   = burb*0.45 + fisura*0.30 + enc*0.25;
   c.sucK  = 0.50 + 0.40*macro;
   c.suc   = vec3(0.155,0.150,0.140);
   c.borde = 0.22;
@@ -50,34 +64,45 @@ Campo campo(vec2 uv){
   Celular g1 = celular(p * 15.0, vec2(15.0*S), 1.0, 2.0);
   Celular g2 = celular(p * 31.0, vec2(31.0*S), 1.0, 8.0);
   Celular g3 = celular(p * 64.0, vec2(64.0*S), 1.0, 14.0);
-  float cup1 = sqrt(max(0.0, 1.0 - g1.f1*2.0)) * step(0.30, g1.id);
-  float cup2 = sqrt(max(0.0, 1.0 - g2.f1*2.1)) * step(0.42, g2.id);
-  float cup3 = sqrt(max(0.0, 1.0 - g3.f1*2.2)) * step(0.55, g3.id);
+  // cobertura parcial: entre los guijarros TIENE que verse la pasta de cemento
+  float cup1 = sqrt(max(0.0, 1.0 - g1.f1*2.25)) * step(0.46, g1.id);
+  float cup2 = sqrt(max(0.0, 1.0 - g2.f1*2.35)) * step(0.52, g2.id);
+  float cup3 = sqrt(max(0.0, 1.0 - g3.f1*2.45)) * step(0.62, g3.id);
   float piedra = max(max(cup1*1.0, cup2*0.62), cup3*0.35);
 
   float pasta = fbm(p * 12.0, 12.0*S, 5, 0.52, 21.0);
   float grano = fbm(p * 70.0, 70.0*S, 3, 0.55, 33.0);
   float micro = fbm(p *190.0,190.0*S, 2, 0.50, 37.0) * uMicro;
   float burb  = poros(p * 30.0, vec2(30.0*S), 0.30, 0.34, 44.0);
+  // arena de la pasta: moteado fino entre los guijarros
+  Celular sp = celular(p * 140.0, vec2(140.0*S), 1.0, 51.0);
+  float mote    = smoothstep(0.55, 0.05, sp.f1) * fract(sp.id*7.7);
+  float moteOsc = step(0.60, fract(sp.id*3.3)) * smoothstep(0.45, 0.05, sp.f1);
 
-  float h = 0.46 + pasta*0.10 + piedra*0.36 + grano*0.05 + micro*0.015 - burb*0.35;
+  float h = 0.46 + pasta*0.10 + piedra*0.36 + grano*0.05 + micro*0.015
+          + mote*0.010 - burb*0.22;
 
   // color: pasta gris + aridos de tonos distintos segun el id de celda
-  vec3 pastaCol = vec3(0.545,0.545,0.535) * (0.82+0.34*pasta);
-  vec3 ar1 = mezclaLin(vec3(0.42,0.40,0.38), vec3(0.66,0.63,0.57), fract(g1.id*7.3));
-  vec3 ar2 = mezclaLin(vec3(0.38,0.36,0.34), vec3(0.60,0.58,0.55), fract(g2.id*3.9));
+  vec3 pastaCol = vec3(0.500,0.503,0.500) * (0.80+0.38*pasta);
+  // arido de verdad: desde granito oscuro hasta caliza casi blanca, en gama FRIA
+  float t1 = fract(g1.id*7.3), t2 = fract(g2.id*3.9);
+  vec3 ar1 = mezclaLin(vec3(0.255,0.250,0.248), vec3(0.660,0.650,0.620), t1*t1);
+  ar1 = mezclaLin(ar1, vec3(0.430,0.395,0.350), step(0.82, t1)*0.7);   // alguno ocre
+  vec3 ar2 = mezclaLin(vec3(0.230,0.228,0.228), vec3(0.580,0.575,0.552), t2*t2);
   vec3 col = pastaCol;
   col = mezclaLin(col, ar1, smoothstep(0.05,0.55,cup1));
   col = mezclaLin(col, ar2, smoothstep(0.05,0.55,cup2)*0.8);
   col = mezclaLin(col, vec3(0.50,0.49,0.47), smoothstep(0.1,0.6,cup3)*0.5);
-  col *= (0.90+0.20*macro) * (0.93+0.14*grano);
-  col *= 1.0 - burb*0.40;
+  col = mezclaLin(col, vec3(0.700,0.690,0.665), mote*0.36);
+  col = mezclaLin(col, vec3(0.300,0.296,0.290), moteOsc*0.34);
+  col *= (0.90+0.20*macro) * (0.90+0.20*grano);
+  col *= 1.0 - burb*0.16;
 
   c.altura = h;
   c.base   = col;
   // el arido pulido es menos rugoso que la pasta
-  c.rug    = 0.86 - piedra*0.26 + grano*0.10 - macro*0.05;
-  c.cav    = burb*0.9;
+  c.rug    = 0.86 - piedra*0.26 + grano*0.10 - macro*0.05 + mote*0.08;
+  c.cav    = burb*0.5;
   c.sucK   = 0.80;
   c.suc    = vec3(0.135,0.128,0.118);
   c.borde  = 0.55;
@@ -101,6 +126,9 @@ Campo campo(vec2 uv){
   float grano = fbm(p * 66.0, 66.0*S, 3, 0.55, 7.0);
   float micro = fbm(p *175.0,175.0*S, 2, 0.50, 9.0) * uMicro;
   float burb  = poros(p * 36.0, vec2(36.0*S), 0.20, 0.28, 17.0);
+  Celular sp = celular(p * 145.0, vec2(145.0*S), 1.0, 91.0);
+  float mote    = smoothstep(0.55, 0.05, sp.f1) * fract(sp.id*7.7);
+  float moteOsc = step(0.62, fract(sp.id*3.3)) * smoothstep(0.45, 0.05, sp.f1);
 
   // interior desconchado: arido grueso expuesto
   Celular g1 = celular(p * 17.0, vec2(17.0*S), 1.0, 71.0);
@@ -109,33 +137,36 @@ Campo campo(vec2 uv){
   float cup2 = sqrt(max(0.0,1.0-g2.f1*2.1)) * step(0.45, g2.id);
   float aridoExp = max(cup1, cup2*0.6);
 
-  float hPiel = 0.78 + medio*0.055 + grano*0.025 + micro*0.010 - burb*0.45;
+  float hPiel = 0.78 + medio*0.055 + grano*0.030 + micro*0.012 + mote*0.008 - burb*0.24;
   float hRoto = 0.44 + aridoExp*0.30 + fbm(p*20.0,20.0*S,4,0.5,77.0)*0.10;
   float h = mix(hPiel, hRoto, salto) + labio*0.03;
 
   // grietas radiales que parten de los desconchados
-  Celular cr = celular(p * 5.0, vec2(5.0*S), 1.0, 81.0);
-  float grieta = (1.0 - smoothstep(0.0, 0.026, bordeCelda(cr)))
-               * smoothstep(0.34, 0.62, mancha);
-  h -= grieta * 0.16;
+  Celular cr = celular(deformar(p*5.0, vec2(5.0*S), 0.30, 2, 81.0), vec2(5.0*S), 1.0, 81.0);
+  float grieta = (1.0 - smoothstep(0.0, 0.011, bordeCelda(cr)))
+               * smoothstep(0.42, 0.56, mancha);
+  h -= grieta * 0.10;
 
-  vec3 piel = vec3(0.60,0.60,0.59) * (0.86+0.28*medio) * (0.92+0.16*macro);
+  vec3 piel = vec3(0.60,0.60,0.59) * (0.84+0.32*medio) * (0.90+0.20*macro);
+  piel = mezclaLin(piel, vec3(0.720,0.715,0.695), mote*0.40);
+  piel = mezclaLin(piel, vec3(0.335,0.330,0.326), moteOsc*0.36);
+  piel *= 0.92 + 0.16*grano;
   vec3 roto = mezclaLin(vec3(0.50,0.485,0.46), vec3(0.62,0.59,0.54), fract(g1.id*5.1));
   roto = mezclaLin(roto, vec3(0.40,0.385,0.37), 1.0-smoothstep(0.0,0.5,aridoExp));
   vec3 col = mezclaLin(piel, roto, salto);
 
   // oxido de la armadura que mancha alrededor del desconchado
-  float ox = smoothstep(0.40,0.52,mancha) * (1.0-salto*0.55)
-           * smoothstep(0.35,0.75, fbm(p*7.0,7.0*S,4,0.55,83.0));
-  ox += reguero(vec2(uv.x, uv.y), 22.0*S, 0.10, 0.34, 87.0) * salto * 0.9;
+  float ox = smoothstep(0.44,0.52,mancha) * (1.0-salto*0.75)
+           * smoothstep(0.52,0.86, fbm(p*7.0,7.0*S,4,0.55,83.0));
+  ox += reguero(vec2(uv.x, uv.y), 22.0*S, 0.10, 0.34, 87.0) * salto * 0.55;
   ox = clamp(ox, 0.0, 1.0);
-  col = mezclaLin(col, vec3(0.44,0.235,0.115), ox*0.75);
-  col = mezclaLin(col, vec3(0.26,0.26,0.26), grieta*0.7);
+  col = mezclaLin(col, vec3(0.44,0.235,0.115), ox*0.55);
+  col = mezclaLin(col, vec3(0.36,0.355,0.350), grieta*0.55);
 
   c.altura = h;
   c.base   = col;
   c.rug    = mix(0.62, 0.90, salto) + grano*0.10 + ox*0.06 - macro*0.04;
-  c.cav    = burb*0.7*(1.0-salto) + grieta*0.7 + salto*0.15;
+  c.cav    = burb*0.4*(1.0-salto) + grieta*0.7 + salto*0.15;
   c.sucK   = 0.55 + salto*0.35;
   c.suc    = mezclaLin(vec3(0.145,0.140,0.132), vec3(0.28,0.14,0.06), ox);
   c.borde  = 0.70;
@@ -154,7 +185,7 @@ Campo campo(vec2 uv){
   Celular a3 = celular(p * 88.0, vec2(88.0*S), 1.0, 10.0);
   float d1 = sqrt(max(0.0,1.0-a1.f1*1.95)) * step(0.22, a1.id);
   float d2 = sqrt(max(0.0,1.0-a2.f1*2.05)) * step(0.36, a2.id);
-  float d3 = sqrt(max(0.0,1.0-a3.f1*2.15)) * step(0.52, a3.id) * uMicro;
+  float d3 = sqrt(max(0.0,1.0-a3.f1*2.15)) * step(0.66, a3.id) * uMicro;
   float piedra = max(max(d1, d2*0.66), d3*0.38);
 
   float betun = fbm(p * 15.0, 15.0*S, 5, 0.5, 14.0);
@@ -170,12 +201,12 @@ Campo campo(vec2 uv){
 
   // betun casi negro; algunos aridos claros (cuarcita) segun el id
   vec3 betunCol = vec3(0.075,0.074,0.078) * (0.65+0.80*betun);
-  vec3 pi1 = mezclaLin(vec3(0.16,0.155,0.15), vec3(0.46,0.45,0.43), pow(fract(a1.id*4.7),2.2));
-  vec3 pi2 = mezclaLin(vec3(0.14,0.14,0.14), vec3(0.38,0.37,0.36), pow(fract(a2.id*9.1),2.5));
+  vec3 pi1 = mezclaLin(vec3(0.105,0.102,0.100), vec3(0.325,0.318,0.305), pow(fract(a1.id*4.7),3.2));
+  vec3 pi2 = mezclaLin(vec3(0.092,0.092,0.094), vec3(0.255,0.250,0.244), pow(fract(a2.id*9.1),3.4));
   vec3 col = betunCol;
-  col = mezclaLin(col, pi1, smoothstep(0.08,0.55,d1));
-  col = mezclaLin(col, pi2, smoothstep(0.08,0.55,d2)*0.75);
-  col = mezclaLin(col, vec3(0.20,0.20,0.20), smoothstep(0.1,0.6,d3)*0.5);
+  col = mezclaLin(col, pi1, smoothstep(0.14,0.62,d1)*0.88);
+  col = mezclaLin(col, pi2, smoothstep(0.14,0.62,d2)*0.60);
+  col = mezclaLin(col, vec3(0.145,0.145,0.148), smoothstep(0.16,0.66,d3)*0.40);
   col *= (0.85+0.30*macro) * (0.92+0.16*grano);
 
   c.altura = h;
@@ -200,7 +231,7 @@ Campo campo(vec2 uv){
   Celular a3 = celular(p * 88.0, vec2(88.0*S), 1.0, 10.0);
   float d1 = sqrt(max(0.0,1.0-a1.f1*1.95)) * step(0.22, a1.id);
   float d2 = sqrt(max(0.0,1.0-a2.f1*2.05)) * step(0.36, a2.id);
-  float d3 = sqrt(max(0.0,1.0-a3.f1*2.15)) * step(0.52, a3.id) * uMicro;
+  float d3 = sqrt(max(0.0,1.0-a3.f1*2.15)) * step(0.66, a3.id) * uMicro;
   float piedra = max(max(d1, d2*0.66), d3*0.38);
 
   float betun = fbm(p * 15.0, 15.0*S, 5, 0.5, 14.0);
@@ -218,11 +249,11 @@ Campo campo(vec2 uv){
   float h = mix(hSeco, max(hSeco, nivel), charco * 0.85);
 
   vec3 betunCol = vec3(0.075,0.074,0.078) * (0.65+0.80*betun);
-  vec3 pi1 = mezclaLin(vec3(0.16,0.155,0.15), vec3(0.46,0.45,0.43), pow(fract(a1.id*4.7),2.2));
-  vec3 pi2 = mezclaLin(vec3(0.14,0.14,0.14), vec3(0.38,0.37,0.36), pow(fract(a2.id*9.1),2.5));
+  vec3 pi1 = mezclaLin(vec3(0.105,0.102,0.100), vec3(0.325,0.318,0.305), pow(fract(a1.id*4.7),3.2));
+  vec3 pi2 = mezclaLin(vec3(0.092,0.092,0.094), vec3(0.255,0.250,0.244), pow(fract(a2.id*9.1),3.4));
   vec3 col = betunCol;
-  col = mezclaLin(col, pi1, smoothstep(0.08,0.55,d1));
-  col = mezclaLin(col, pi2, smoothstep(0.08,0.55,d2)*0.75);
+  col = mezclaLin(col, pi1, smoothstep(0.14,0.62,d1)*0.88);
+  col = mezclaLin(col, pi2, smoothstep(0.14,0.62,d2)*0.60);
   col *= (0.85+0.30*macro) * (0.92+0.16*grano);
 
   // el agua oscurece y satura ligeramente el sustrato

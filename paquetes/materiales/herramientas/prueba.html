@@ -1,0 +1,35 @@
+<!doctype html><meta charset="utf-8"><body><pre id="l"></pre>
+<script type="module">
+import { crearMaterial, crearCalcomania, NOMBRES, NOMBRES_CALCOMANIAS, estadisticas, liberar } from '../src/index.js';
+const L=[], log=s=>{L.push(s); document.getElementById('l').textContent=L.join('\n'); console.log(s);};
+const RES = Number(new URLSearchParams(location.search).get('res')||1024);
+window.__ERR=[];
+const t0=performance.now();
+const c2=new OffscreenCanvas(RES,RES), x2=c2.getContext('2d',{willReadFrequently:true});
+for(const n of NOMBRES){
+  const t=performance.now();
+  try{
+    const m=await crearMaterial(n,{resolucion:RES,semilla:7});
+    // comprobar rango real de cada mapa (detecta mapas planos)
+    const rangos={};
+    for(const k of ['albedo','normal','rugosidad','metalico','oclusion','altura']){
+      x2.clearRect(0,0,RES,RES); x2.drawImage(m[k],0,0);
+      const d=x2.getImageData(0,0,RES,RES).data;
+      let mn=255,mx=0,sum=0;
+      for(let i=0;i<d.length;i+=4*7){ const v=d[i]; if(v<mn)mn=v; if(v>mx)mx=v; sum+=v; }
+      rangos[k]=[mn,mx,Math.round(sum/(d.length/28))];
+    }
+    log(`${n.padEnd(22)} ${(performance.now()-t).toFixed(0).padStart(5)}ms  alb ${rangos.albedo}  rug ${rangos.rugosidad}  met ${rangos.metalico}  alt ${rangos.altura}  ocl ${rangos.oclusion}`);
+    for(const k of ['albedo','normal','rugosidad','metalico','oclusion','altura']) m[k].close&&m[k].close();
+  }catch(e){ window.__ERR.push(n+': '+e.message); log('FALLO '+n+': '+e.message.slice(0,500)); }
+}
+for(const n of NOMBRES_CALCOMANIAS){
+  const t=performance.now();
+  try{ const c=await crearCalcomania(n,{resolucion:512,semilla:3});
+    log(`CALCO ${n.padEnd(22)} ${(performance.now()-t).toFixed(0)}ms`);
+    for(const k of ['color','normal','ard']) c[k].close&&c[k].close();
+  }catch(e){ window.__ERR.push(n+': '+e.message); log('FALLO CALCO '+n+': '+e.message.slice(0,500)); }
+}
+log('TOTAL wall '+(performance.now()-t0).toFixed(0)+'ms  generacion '+estadisticas().msGenerado.toFixed(0)+'ms');
+window.__DONE=true;
+</script>

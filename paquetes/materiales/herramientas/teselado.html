@@ -1,0 +1,35 @@
+<!doctype html><meta charset="utf-8"><body style="margin:0;background:#111">
+<script type="module">
+import { crearMaterial, MATERIALES, NOMBRES } from '../src/index.js';
+const q = new URLSearchParams(location.search);
+const MAPA = q.get('mapa') || 'albedo';
+const RES = 512, CELDA = 168;                 // 3x3 de 168 -> 504 px por material
+window.__HOJAS = [];
+const lote = 4;
+for (let b = 0; b < NOMBRES.length; b += lote) {
+  const grupo = NOMBRES.slice(b, b + lote);
+  const W = 2*(CELDA*3 + 16), H = 2*(CELDA*3 + 34);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const x = cv.getContext('2d');
+  x.fillStyle = '#101216'; x.fillRect(0,0,W,H);
+  for (let i = 0; i < grupo.length; i++) {
+    const m = await crearMaterial(grupo[i], { resolucion: RES, semilla: 7 });
+    const ox = (i % 2) * (CELDA*3 + 16) + 8;
+    const oy = Math.floor(i/2) * (CELDA*3 + 34) + 26;
+    for (let ty = 0; ty < 3; ty++) for (let tx = 0; tx < 3; tx++) {
+      x.drawImage(m[MAPA], ox + tx*CELDA, oy + ty*CELDA, CELDA, CELDA);
+    }
+    // marcas que señalan DONDE estan las costuras: si se ve una linea, esta mal
+    x.strokeStyle = 'rgba(255,60,60,0.55)'; x.lineWidth = 1;
+    for (let k = 1; k <= 2; k++) {
+      x.beginPath(); x.moveTo(ox+k*CELDA+0.5, oy); x.lineTo(ox+k*CELDA+0.5, oy+3*CELDA); x.stroke();
+      x.beginPath(); x.moveTo(ox, oy+k*CELDA+0.5); x.lineTo(ox+3*CELDA, oy+k*CELDA+0.5); x.stroke();
+    }
+    x.fillStyle = '#e8edf3'; x.font = '600 15px system-ui,sans-serif';
+    x.fillText(MATERIALES[grupo[i]].etiqueta + '  (' + MAPA + ', 3x3)', ox, oy - 8);
+    for (const k of ['albedo','normal','rugosidad','metalico','oclusion','altura']) m[k].close && m[k].close();
+  }
+  window.__HOJAS.push(cv.toDataURL('image/png'));
+}
+window.__DONE = true;
+</script>

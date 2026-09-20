@@ -190,9 +190,16 @@ float poros(vec2 p, vec2 per, float dens, float radio, float s){
       vec3 hh = h23(c + sem(s));
       if (hh.z > dens) continue;
       vec2 ctr = g + hh.xy;
-      float r = radio * (0.35 + 0.65 * h21(c + sem(s + 8.3)));
-      float dd = length(f - ctr) / max(r, 1e-4);
-      prof = max(prof, 1.0 - smoothstep(0.55, 1.0, dd));
+      float t = h21(c + sem(s + 8.3));
+      // tamaños sesgados a lo pequeño: en la realidad casi todos los poros son
+      // diminutos y solo unos pocos son grandes. Un radio uniforme da "lunares".
+      float r = radio * (0.16 + 0.84 * t*t*t);
+      vec2 d = f - ctr;
+      // contorno irregular: un poro de aire no es un circulo perfecto
+      float an = atan(d.y, d.x);
+      float ond = 0.80 + 0.20*sin(an*3.0 + t*19.0) + 0.13*sin(an*5.0 - t*11.0);
+      float dd = length(d) / max(r*ond, 1e-4);
+      prof = max(prof, 1.0 - smoothstep(0.35, 1.0, dd));
     }
   }
   return prof;

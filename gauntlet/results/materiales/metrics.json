@@ -1,0 +1,228 @@
+{
+  "label": "materiales",
+  "root": "/home/user/campus-app/paquetes/materiales/visor",
+  "startedAt": "2026-09-20T20:37:25.718Z",
+  "exclusividad": {
+    "nucleos": 4,
+    "cargaMedia": 0.78,
+    "navegadoresAjenosActivos": [],
+    "exclusivo": true
+  },
+  "errors": [],
+  "cameras": [
+    {
+      "tag": "cam0",
+      "fotogramas": 7,
+      "fpsReal": 1.7213799073159857,
+      "frameMsReal": 580.9292857142864,
+      "p95FrameMsReal": 633.310000000005,
+      "peorFrameMs": 633.310000000005,
+      "declarado": {
+        "fps": 1.7485792793355397,
+        "drawCalls": 57,
+        "triangles": 153234,
+        "bodies": 0,
+        "activeBodies": 0,
+        "texturasMB": 638.4,
+        "generacionMs": 24965,
+        "materiales": 24,
+        "calcomanias": 7
+      }
+    },
+    {
+      "tag": "cam1",
+      "fotogramas": 8,
+      "fpsReal": 1.9048390053883126,
+      "frameMsReal": 524.9787500000002,
+      "p95FrameMsReal": 599.9749999999985,
+      "peorFrameMs": 599.9749999999985,
+      "declarado": {
+        "fps": 1.9961673586714994,
+        "drawCalls": 57,
+        "triangles": 153234,
+        "bodies": 0,
+        "activeBodies": 0,
+        "texturasMB": 638.4,
+        "generacionMs": 24965,
+        "materiales": 24,
+        "calcomanias": 7
+      }
+    },
+    {
+      "tag": "cam2",
+      "fotogramas": 6,
+      "fpsReal": 1.4400576023040923,
+      "frameMsReal": 694.4166666666666,
+      "p95FrameMsReal": 749.9700000000012,
+      "peorFrameMs": 749.9700000000012,
+      "declarado": {
+        "fps": 1.4970227959139013,
+        "drawCalls": 57,
+        "triangles": 153234,
+        "bodies": 0,
+        "activeBodies": 0,
+        "texturasMB": 638.4,
+        "generacionMs": 24965,
+        "materiales": 24,
+        "calcomanias": 7
+      }
+    },
+    {
+      "tag": "cam3",
+      "fotogramas": 4,
+      "fpsReal": 0.9716980788314366,
+      "frameMsReal": 1029.1262499999993,
+      "p95FrameMsReal": 1083.2950000000055,
+      "peorFrameMs": 1083.2950000000055,
+      "declarado": {
+        "fps": 0.9987378450483945,
+        "drawCalls": 57,
+        "triangles": 153234,
+        "bodies": 0,
+        "activeBodies": 0,
+        "texturasMB": 638.4,
+        "generacionMs": 24965,
+        "materiales": 24,
+        "calcomanias": 7
+      }
+    },
+    {
+      "tag": "cam4",
+      "fotogramas": 8,
+      "fpsReal": 2.0000800032001296,
+      "frameMsReal": 499.97999999999956,
+      "p95FrameMsReal": 583.3099999999977,
+      "peorFrameMs": 583.3099999999977,
+      "declarado": {
+        "fps": 1.9975604792638804,
+        "drawCalls": 57,
+        "triangles": 153234,
+        "bodies": 0,
+        "activeBodies": 0,
+        "texturasMB": 638.4,
+        "generacionMs": 24965,
+        "materiales": 24,
+        "calcomanias": 7
+      }
+    },
+    {
+      "tag": "cam5",
+      "fotogramas": 13,
+      "fpsReal": 3.023378858441915,
+      "frameMsReal": 330.75576923076903,
+      "p95FrameMsReal": 399.9800000000105,
+      "peorFrameMs": 399.9800000000105,
+      "declarado": {
+        "fps": 3.2471141273195867,
+        "drawCalls": 57,
+        "triangles": 153234,
+        "bodies": 0,
+        "activeBodies": 0,
+        "texturasMB": 638.4,
+        "generacionMs": 24965,
+        "materiales": 24,
+        "calcomanias": 7
+      }
+    }
+  ],
+  "phases": [
+    {
+      "tag": "phase_props",
+      "fotogramas": 7,
+      "fpsReal": 1.7213820238534365,
+      "frameMsReal": 580.9285714285714,
+      "p95FrameMsReal": 999.9599999999919,
+      "peorFrameMs": 999.9599999999919,
+      "declarado": {
+        "fps": 1.7489113027131489,
+        "drawCalls": 57,
+        "triangles": 153234,
+        "bodies": 0,
+        "activeBodies": 0,
+        "texturasMB": 638.4,
+        "generacionMs": 24965,
+        "materiales": 24,
+        "calcomanias": 7
+      }
+    },
+    {
+      "tag": "phase_explosion",
+      "fotogramas": 8,
+      "fpsReal": 2.0253959332581397,
+      "frameMsReal": 493.73062500000015,
+      "p95FrameMsReal": 583.3150000000023,
+      "peorFrameMs": 583.3150000000023,
+      "declarado": {
+        "fps": 1.9920740354301225,
+        "drawCalls": 57,
+        "triangles": 153234,
+        "bodies": 0,
+        "activeBodies": 0,
+        "texturasMB": 638.4,
+        "generacionMs": 24965,
+        "materiales": 24,
+        "calcomanias": 7
+      }
+    },
+    {
+      "tag": "phase_ragdoll",
+      "fotogramas": 8,
+      "fpsReal": 2.0168863812268243,
+      "frameMsReal": 495.81374999999935,
+      "p95FrameMsReal": 549.9799999999959,
+      "peorFrameMs": 549.9799999999959,
+      "declarado": {
+        "fps": 1.9989655353353148,
+        "drawCalls": 57,
+        "triangles": 153234,
+        "bodies": 0,
+        "activeBodies": 0,
+        "texturasMB": 638.4,
+        "generacionMs": 24965,
+        "materiales": 24,
+        "calcomanias": 7
+      }
+    },
+    {
+      "tag": "phase_chaos",
+      "fotogramas": 7,
+      "fpsReal": 1.7356074750134456,
+      "frameMsReal": 576.1671428571447,
+      "p95FrameMsReal": 633.304999999993,
+      "peorFrameMs": 633.304999999993,
+      "declarado": {
+        "fps": 1.7478741480665025,
+        "drawCalls": 57,
+        "triangles": 153234,
+        "bodies": 0,
+        "activeBodies": 0,
+        "texturasMB": 638.4,
+        "generacionMs": 24965,
+        "materiales": 24,
+        "calcomanias": 7
+      }
+    }
+  ],
+  "readyWallMs": 30089,
+  "loadTimeMs": 29915.77499999851,
+  "postStress": {
+    "tag": "post_stress",
+    "fotogramas": 7,
+    "fpsReal": 1.787307816535417,
+    "frameMsReal": 559.5007142857108,
+    "p95FrameMsReal": 566.6450000000186,
+    "peorFrameMs": 566.6450000000186,
+    "declarado": {
+      "fps": 1.7488938246553842,
+      "drawCalls": 57,
+      "triangles": 153234,
+      "bodies": 0,
+      "activeBodies": 0,
+      "texturasMB": 638.4,
+      "generacionMs": 24965,
+      "materiales": 24,
+      "calcomanias": 7
+    }
+  },
+  "finishedAt": "2026-09-20T20:39:53.957Z"
+}

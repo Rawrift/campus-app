@@ -49,20 +49,20 @@ Campo campo(vec2 uv){
   // --- ondulacion del vidrio flotado (muy leve, pero rompe el reflejo plano)
   float ondul = fbm2(vec2(p.x*1.0, p.y*2.5), vec2(1.0*S, 2.5*S), 3, 0.5, 53.0);
 
-  float mugre = clamp(capaPolvo*0.75 + grasa*0.55 + barro*1.0
-                    + cerco*0.8 + cerco2*0.5 + discoGota*0.5
-                    + canal*0.20, 0.0, 1.0);
+  float mugre = clamp(capaPolvo*0.42 + grasa*0.34 + barro*0.85
+                    + cerco*0.55 + cerco2*0.34 + discoGota*0.30
+                    + canal*0.12, 0.0, 1.0);
   mugre *= 1.0 - canal*0.55;          // por donde escurre el agua queda limpio
 
   float h = 0.86 + (ondul-0.5)*0.030 + mugre*0.020 + cerco*0.010
           + barro*0.030 - aranazo*0.012;
 
-  vec3 vidrio = vec3(0.045,0.052,0.050);
-  vec3 sucio  = vec3(0.395,0.375,0.335);
+  vec3 vidrio = vec3(0.022,0.026,0.027);
+  vec3 sucio  = vec3(0.250,0.238,0.212);
   vec3 cal    = vec3(0.640,0.640,0.625);
   vec3 barroC = vec3(0.245,0.185,0.125);
   vec3 col = mezclaLin(vidrio, sucio, mugre*0.80);
-  col = mezclaLin(col, cal, (cerco*0.55 + cerco2*0.35));
+  col = mezclaLin(col, cal, (cerco*0.38 + cerco2*0.24));
   col = mezclaLin(col, barroC, barro*0.75);
   col = mezclaLin(col, vec3(0.16,0.17,0.17), canal*0.25);
   col = mezclaLin(col, vec3(0.30,0.31,0.31), aranazo*0.45);
@@ -100,7 +100,7 @@ Campo campo(vec2 uv){
   // --- linea de particion del molde y rebaba
   float lin = abs(fract(uv.y * 2.0 * S) - 0.5);
   float rebaba = (1.0 - smoothstep(0.004, 0.011, lin));
-  float pelo = rebaba * smoothstep(0.35, 0.75, fbm(vec2(p.x*40.0, p.y*4.0), vec2(40.0*S, 4.0*S), 3, 0.5, 23.0));
+  float pelo = rebaba * smoothstep(0.35, 0.75, fbm2(vec2(p.x*40.0, p.y*4.0), vec2(40.0*S, 4.0*S), 3, 0.5, 23.0));
 
   // --- rozaduras: la goma se pule donde roza y brilla mas
   float roce = smoothstep(0.45, 0.82, fbm(deformar(p*4.0, vec2(4.0*S), 0.35, 2, 29.0), 4.0*S, 4, 0.55, 31.0));

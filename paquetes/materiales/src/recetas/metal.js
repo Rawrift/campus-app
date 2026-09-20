@@ -19,11 +19,15 @@ Campo campo(vec2 uv){
   float polvo = fbm(p * 18.0, 18.0*S, 4, 0.55, 13.0);
 
   // --- saltados de pintura: se concentran donde hay roce (bordes de celda)
-  Celular ce = celular(p * 9.0, vec2(9.0*S), 1.0, 17.0);
-  float zonaRoce = smoothstep(0.40, 0.78, fbm(p * 4.0, 4.0*S, 4, 0.55, 19.0));
-  float saltadoRaw = (1.0 - smoothstep(0.02, 0.16, bordeCelda(ce))) * zonaRoce;
-  float saltado = smoothstep(0.30, 0.62, saltadoRaw);            // pintura ausente
-  float halo    = smoothstep(0.12, 0.40, saltadoRaw) - saltado;  // borde levantado
+  Celular ce = celular(deformar(p*9.0, vec2(9.0*S), 0.38, 2, 17.0), vec2(9.0*S), 1.0, 17.0);
+  float zonaRoce = smoothstep(0.38, 0.80, fbm(p * 4.0, 4.0*S, 4, 0.55, 19.0));
+  // solo algunas escamas saltan, y lo hacen como MANCHA alrededor del nucleo
+  // de la celda, con el contorno deformado por ruido
+  float elegida = smoothstep(0.60, 0.72, fract(ce.id*5.7));
+  float mancha  = 1.0 - smoothstep(0.12, 0.42, ce.f1);
+  float saltadoRaw = mancha * elegida * zonaRoce;
+  float saltado = smoothstep(0.26, 0.55, saltadoRaw);            // pintura ausente
+  float halo    = smoothstep(0.08, 0.30, saltadoRaw) - saltado;  // borde levantado
 
   // arañazos que atraviesan la pintura
   float ar = aranazos(p * 16.0, vec2(16.0*S), 0.26, 0.40, 23.0);
@@ -180,8 +184,8 @@ Campo campo(vec2 uv){
   c.altura = h;
   c.base   = base;
   // ANISOTROPIA aproximada: la rugosidad sigue el surco del cepillado
-  c.rug    = clamp(0.24 + (1.0-surco)*0.20 + cep*0.10 + huella*0.30
-                   + golpe*0.20 - aranazo*0.12, 0.05, 1.0);
+  c.rug    = clamp(0.30 + (1.0-surco)*0.22 + cep*0.12 + huella*0.30
+                   + golpe*0.20 - aranazo*0.12, 0.10, 1.0);
   c.met    = 1.0 - huella*0.10;
   c.cav    = golpe*0.5;
   c.sucK   = 0.35;
@@ -381,14 +385,15 @@ Campo campo(vec2 uv){
   float craq = 1.0 - smoothstep(0.004, 0.030, bordeCelda(cq));
   Celular cq2 = celular(p * 62.0, vec2(62.0*S), 1.0, 7.0);
   float craq2 = (1.0 - smoothstep(0.004, 0.028, bordeCelda(cq2))) * uMicro;
-  float redCraq = clamp(craq + craq2*0.6, 0.0, 1.0);
+  float redCraq = clamp(craq*0.75 + craq2*0.40, 0.0, 1.0);
   float zonaCraq = smoothstep(0.35, 0.70, fbm(p*3.0, 3.0*S, 4, 0.55, 11.0));
   redCraq *= zonaCraq;
 
   // --- desprendimiento en escamas: la placa de pintura salta entera
-  Celular pl = celular(p * 11.0, vec2(11.0*S), 1.0, 13.0);
+  Celular pl = celular(deformar(p*11.0, vec2(11.0*S), 0.34, 2, 13.0), vec2(11.0*S), 1.0, 13.0);
   float desgasteMapa = fbm(deformar(p*2.6, vec2(2.6*S), 0.45, 2, 17.0), 2.6*S, 5, 0.55, 19.0);
-  float saltaRaw = smoothstep(0.38, 0.72, desgasteMapa) * smoothstep(0.30, 0.02, bordeCelda(pl));
+  float escama = 1.0 - smoothstep(0.10, 0.40, pl.f1);
+  float saltaRaw = smoothstep(0.34, 0.76, desgasteMapa) * escama;
   float capa2 = smoothstep(0.18, 0.40, saltaRaw);   // falta la capa de acabado
   float capa1 = smoothstep(0.48, 0.72, saltaRaw);   // falta tambien la imprimacion
 
@@ -401,7 +406,7 @@ Campo campo(vec2 uv){
   float piel = fbm(p * 100.0, 100.0*S, 2, 0.5, 29.0) * uMicro;
   float polvo = fbm(p * 24.0, 24.0*S, 4, 0.55, 31.0);
 
-  float h = 0.76 + soporte*0.045 + piel*0.010 - redCraq*0.030
+  float h = 0.76 + soporte*0.045 + piel*0.010 - redCraq*0.018
           - capa2*0.035 - capa1*0.035 + rizo*0.055 - aranazo*0.05;
 
   // --- tres capas: acabado, imprimacion rojo oxido, acero
@@ -421,7 +426,7 @@ Campo campo(vec2 uv){
   col = mezclaLin(col, imprim, capa2);
   col = mezclaLin(col, acero,  capa1);
   col = mezclaLin(col, oxido,  ox*0.85);
-  col = mezclaLin(col, col*0.55, redCraq*0.55);      // la fisura se ve oscura
+  col = mezclaLin(col, col*0.62, redCraq*0.38);      // la fisura se ve oscura
   col = mezclaLin(col, vec3(0.86,0.86,0.87), aranazo*(1.0-capa1)*0.30);
 
   c.altura = h;

@@ -218,7 +218,7 @@ Campo campo(vec2 uv){
   float junta = 1.0 - smoothstep(0.0, 0.020, bordeT);
   float chaflan = 1.0 - smoothstep(0.015, 0.075, bordeT);
   float astilla = (1.0 - smoothstep(0.02, 0.10, bordeT))
-                * smoothstep(0.45, 0.80, fbm(vec2(uv.x*S*9.0, ly*3.0), vec2(9.0*S, 3.0), 3, 0.5, 31.0));
+                * smoothstep(0.45, 0.80, fbm2(vec2(uv.x*S*9.0, ly*3.0), vec2(9.0*S, 3.0), 3, 0.5, 31.0));
 
   // --- nudos grandes y saltados
   float kx = h21(vec2(mod(fil,nT), 23.0)+sem(11.0));
@@ -243,7 +243,7 @@ Campo campo(vec2 uv){
           - clavo*0.40;
 
   // --- color: pino muy agrisado por la intemperie
-  float exposicion = smoothstep(0.25, 0.85, fbm(vec2(uv.x*S*2.0, ly*1.5), vec2(2.0*S,1.5), 4, 0.55, 37.0));
+  float exposicion = smoothstep(0.25, 0.85, fbm2(vec2(uv.x*S*2.0, ly*1.5), vec2(2.0*S,1.5), 4, 0.55, 37.0));
   vec3 pinoClaro = mezclaLin(vec3(0.600,0.470,0.320), vec3(0.690,0.545,0.385), r1);
   vec3 pinoOsc   = mezclaLin(vec3(0.355,0.245,0.145), vec3(0.440,0.315,0.195), r2);
   vec3 gris      = mezclaLin(vec3(0.395,0.378,0.355), vec3(0.510,0.492,0.462), r3);
@@ -260,7 +260,7 @@ Campo campo(vec2 uv){
   col = mezclaLin(col, vec3(0.360,0.190,0.095), cerco*0.60);   // oxido alrededor del clavo
   col = mezclaLin(col, vec3(0.330,0.325,0.320), clavo*0.80);
   // manchon de tinta del sello del pale
-  float tinta = smoothstep(0.72, 0.88, fbm(vec2(uv.x*S*4.0, ly*2.0), vec2(4.0*S,2.0), 3, 0.5, 43.0));
+  float tinta = smoothstep(0.72, 0.88, fbm2(vec2(uv.x*S*4.0, ly*2.0), vec2(4.0*S,2.0), 3, 0.5, 43.0));
   col = mezclaLin(col, vec3(0.22,0.20,0.19), tinta*0.35);
 
   c.altura = h;

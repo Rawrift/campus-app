@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Materiales PBR procedurales — visor</title>
+<style>
+  html,body{margin:0;padding:0;background:#0b0d10;overflow:hidden;
+    font-family:"Segoe UI",system-ui,-apple-system,sans-serif}
+  #lienzo,#texto{position:absolute;inset:0;width:100%;height:100%}
+  #texto{pointer-events:none}
+  #estado{position:absolute;left:14px;top:12px;color:#cfd6df;font-size:13px;
+    letter-spacing:.2px;text-shadow:0 1px 3px #000;z-index:5}
+  #cargando{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#e8edf3;font-size:16px;letter-spacing:.4px;background:#0b0d10;z-index:9}
+</style>
+</head>
+<body>
+<canvas id="lienzo"></canvas>
+<canvas id="texto"></canvas>
+<div id="estado"></div>
+<div id="cargando">Generando materiales…</div>
+
+<script type="module">
+import { crearMaterial, crearCalcomania, MATERIALES, CALCOMANIAS,
+         NOMBRES, NOMBRES_CALCOMANIAS, estadisticas } from './src/index.js';
+
+const RES  = Number(new URLSearchParams(location.search).get('res') || 1024);
+const t0   = performance.now();
+
+window.__BENCH = {
+  ready: false, loadTimeMs: null,
+  setCamera: () => {}, phase: () => {}, resetStats: () => {}, stats: () => ({})
+};
+
+// ==========================================================================
+//  Algebra minima (sin dependencias)
+// ==========================================================================
+const M4 = {
+  ident: () => new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]),
+  mul (a, b, o = new Float32Array(16)) {
+    for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+      o[c*4+r] = a[r]*b[c*4] + a[4+r]*b[c*4+1] + a[8+r]*b[c*4+2] + a[12+r]*b[c*4+3];
+    }
+    return o;
+  },
+  persp (fovy, asp, n, f) {
+    const t = 1 / Math.tan(fovy/2), o = new Float32Array(16);
+    o[0]=t/asp; o[5]=t; o[10]=(f+n)/(n-f); o[11]=-1; o[14]=2*f*n/(n-f);
+    return o;
+  },
+  mirar (ojo, obj, arr) {
+    let z = [ojo[0]-obj[0], ojo[1]-obj[1], ojo[2]-obj[2]];
+    let l = Math.hypot(...z); z = z.map(v => v/l);
+    let x = [arr[1]*z[2]-arr[2]*z[1], arr[2]*z[0]-arr[0]*z[2], arr[0]*z[1]-arr[1]*z[0]];
+    l = Math.hypot(...x) || 1; x = x.map(v => v/l);
+    const y = [z[1]*x[2]-z[2]*x[1], z[2]*x[0]-z[0]*x[2], z[0]*x[1]-z[1]*x[0]];
+    return new Float32Array([
+      x[0],y[0],z[0],0,  x[1],y[1],z[1],0,  x[2],y[2],z[2],0,
+      -(x[0]*ojo[0]+x[1]*ojo[1]+x[2]*ojo[2]),
+      -(y[0]*ojo[0]+y[1]*ojo[1]+y[2]*ojo[2]),
+      -(z[0]*ojo[0]+z[1]*ojo[1]+z[2]*ojo[2]), 1]);
+  },
+  trs (tx, ty, tz, s) {
+    return new Float32Array([s,0,0,0, 0,s,0,0, 0,0,s,0, tx,ty,tz,1]);
+  }
+};
+
+// ==========================================================================
+//  WebGL2
+// ==========================================================================
+const lienzo = document.getElementById('lienzo');
+const gl = lienzo.getContext('webgl2', { antialias: true, alpha: false, depth: true });
+if (!gl) throw new Error('WebGL2 no disponible');
+gl.getExtension('EXT_texture_filter_anisotropic');
+const aniso = gl.getExtension('EXT_texture_filter_anisotropic');
+const maxAniso = aniso ? gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT) : 1;
+
+function shader (tipo, src) {
+  const s = gl.createShader(tipo); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+function programa (vs, fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, shader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, shader(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}; const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) {
+    const nm = gl.getActiveUniform(p, i).name.replace(/\[0\]$/, '');
+    u[nm] = gl.getUniformLocation(p, nm);
+  }
+  return { p, u };
+}
+
+// -------------------------------------------------------------- shaders PBR
+const VS_PBR = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNor;
+layout(location=2) in vec2 aUv;
+uniform mat4 uVP, uM;
+uniform float uUvEsc;
+out vec3 vPos; out vec3 vNor; out vec2 vUv;
+void main(){
+  vec4 wp = uM * vec4(aPos,1.0);
+  vPos = wp.xyz;
+  vNor = mat3(uM) * aNor;
+  vUv  = aUv * uUvEsc;
+  gl_Position = uVP * wp;
+}`;
+
+const FS_PBR = `#version 300 es
+precision highp float;
+in vec3 vPos; in vec3 vNor; in vec2 vUv;
+out vec4 frag;
+
+uniform sampler2D mAlbedo, mNormal, mRug, mMet, mOcl;
+uniform sampler2D mEnv;
+uniform vec3  uCam;
+uniform vec3  uLuzDir;      // hacia la luz
+uniform vec3  uLuzCol;
+uniform float uLuzInt;
+uniform float uEnvInt;
+uniform float uEnvLods;
+uniform float uNormalFuerza;
+uniform float uAlfaCorte;   // 0 = opaco (materiales), >0 = calcomania
+uniform sampler2D mArd;     // calcomanias: (oclusion, rugosidad, metalico, alfa)
+uniform int   uEsCalco;
+
+const float PI = 3.14159265359;
+
+vec3 aLineal(vec3 c){ return pow(c, vec3(2.2)); }
+
+vec3 muestraEnv(vec3 d, float lod){
+  float u = atan(d.x, d.z) / (2.0*PI) + 0.5;
+  float v = acos(clamp(d.y, -1.0, 1.0)) / PI;
+  return aLineal(textureLod(mEnv, vec2(u, v), lod).rgb) * uEnvInt;
+}
+
+// marco tangente a partir de las derivadas de pantalla (sin atributos extra)
+mat3 marco(vec3 N, vec3 p, vec2 uv){
+  vec3 dp1 = dFdx(p), dp2 = dFdy(p);
+  vec2 du1 = dFdx(uv), du2 = dFdy(uv);
+  vec3 dp2p = cross(dp2, N), dp1p = cross(N, dp1);
+  vec3 T = dp2p*du1.x + dp1p*du2.x;
+  vec3 B = dp2p*du1.y + dp1p*du2.y;
+  float im = inversesqrt(max(dot(T,T), dot(B,B)));
+  return mat3(T*im, B*im, N);
+}
+
+float D_GGX(float NoH, float a){
+  float a2 = a*a;
+  float d = NoH*NoH*(a2-1.0)+1.0;
+  return a2 / max(PI*d*d, 1e-7);
+}
+float V_Smith(float NoV, float NoL, float a){
+  float a2 = a*a;
+  float gv = NoL * sqrt(NoV*NoV*(1.0-a2)+a2);
+  float gl = NoV * sqrt(NoL*NoL*(1.0-a2)+a2);
+  return 0.5 / max(gv+gl, 1e-6);
+}
+vec3 F_Schlick(vec3 f0, float u){
+  float f = pow(1.0-u, 5.0);
+  return f0 + (vec3(1.0)-f0)*f;
+}
+// aproximacion analitica del BRDF de entorno (Karis / Lazarov)
+vec3 envBRDF(vec3 f0, float rug, float NoV){
+  const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+  const vec4 c1 = vec4( 1.0,  0.0425,  1.04, -0.04);
+  vec4 r = rug*c0 + c1;
+  float a004 = min(r.x*r.x, exp2(-9.28*NoV))*r.x + r.y;
+  vec2 ab = vec2(-1.04, 1.04)*a004 + r.zw;
+  return f0*ab.x + ab.y;
+}
+vec3 aces(vec3 x){
+  const float a=2.51,b=0.03,c=2.43,d=0.59,e=0.14;
+  return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+}
+
+void main(){
+  vec4 alb4 = texture(mAlbedo, vUv);
+  float alfa = 1.0;
+  float rug, met, ocl;
+  if (uEsCalco == 1){
+    vec4 ard = texture(mArd, vUv);
+    alfa = alb4.a;
+    if (alfa < 0.01) discard;
+    ocl = ard.r; rug = ard.g; met = ard.b;
+  } else {
+    rug = texture(mRug, vUv).r;
+    met = texture(mMet, vUv).r;
+    ocl = texture(mOcl, vUv).r;
+  }
+  vec3 albedo = aLineal(alb4.rgb);
+  rug = clamp(rug, 0.055, 1.0);
+
+  vec3 Ng = normalize(vNor);
+  vec3 V  = normalize(uCam - vPos);
+  vec3 nt = texture(mNormal, vUv).xyz * 2.0 - 1.0;
+  nt.xy *= uNormalFuerza;
+  vec3 N = normalize(marco(Ng, vPos, vUv) * normalize(nt));
+  if (dot(N, Ng) < 0.0) N = normalize(N - 1.6*Ng*dot(N, Ng));  // evita normales invertidas
+
+  float NoV = clamp(dot(N, V), 1e-4, 1.0);
+  vec3 f0 = mix(vec3(0.04), albedo, met);
+  vec3 difCol = albedo * (1.0 - met);
+  float a = rug*rug;
+
+  // ---- luz direccional (sol)
+  vec3 L = normalize(uLuzDir);
+  vec3 H = normalize(L + V);
+  float NoL = clamp(dot(N, L), 0.0, 1.0);
+  float NoH = clamp(dot(N, H), 0.0, 1.0);
+  float VoH = clamp(dot(V, H), 0.0, 1.0);
+  vec3 F = F_Schlick(f0, VoH);
+  vec3 esp = F * D_GGX(NoH, a) * V_Smith(NoV, NoL, a);
+  vec3 dif = difCol / PI * (vec3(1.0) - F);
+  // sombreado suave por oclusion en el termino directo (micro-sombras del relieve)
+  float microSombra = mix(1.0, ocl, 0.55);
+  vec3 directo = (dif + esp) * uLuzCol * uLuzInt * NoL * microSombra;
+
+  // ---- luz de relleno fria desde el lado opuesto (rebote del cielo)
+  vec3 L2 = normalize(vec3(-uLuzDir.x, 0.35, -uLuzDir.z));
+  float NoL2 = clamp(dot(N, L2), 0.0, 1.0);
+  vec3 relleno = difCol/PI * vec3(0.30,0.38,0.52) * 0.85 * NoL2 * ocl;
+
+  // ---- entorno
+  vec3 R = reflect(-V, N);
+  vec3 irr = muestraEnv(N, uEnvLods - 1.5);
+  vec3 pref = muestraEnv(R, sqrt(rug) * uEnvLods);
+  vec3 ambD = difCol * irr * ocl;
+  vec3 ambE = pref * envBRDF(f0, rug, NoV) * ocl;
+
+  vec3 col = directo + relleno + ambD + ambE;
+  col = aces(col * 1.05);
+  frag = vec4(pow(col, vec3(1.0/2.2)), alfa);
+}`;
+
+const VS_CIELO = `#version 300 es
+out vec3 vDir;
+uniform mat4 uInvVP;
+void main(){
+  vec2 p = vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2))*2.0-1.0;
+  vec4 a = uInvVP * vec4(p, 0.0, 1.0);
+  vec4 b = uInvVP * vec4(p, 1.0, 1.0);
+  vDir = b.xyz/b.w - a.xyz/a.w;
+  gl_Position = vec4(p, 1.0, 1.0);
+}`;
+const FS_CIELO = `#version 300 es
+precision highp float;
+in vec3 vDir; out vec4 frag;
+uniform sampler2D mEnv; uniform float uEnvInt;
+const float PI = 3.14159265359;
+vec3 aces(vec3 x){ const float a=2.51,b=0.03,c=2.43,d=0.59,e=0.14;
+  return clamp((x*(a*x+b))/(x*(c*x+d)+e),0.0,1.0); }
+void main(){
+  vec3 d = normalize(vDir);
+  float u = atan(d.x, d.z)/(2.0*PI)+0.5;
+  float v = acos(clamp(d.y,-1.0,1.0))/PI;
+  vec3 c = pow(textureLod(mEnv, vec2(u,v), 0.0).rgb, vec3(2.2)) * uEnvInt;
+  frag = vec4(pow(aces(c*1.05), vec3(1.0/2.2)), 1.0);
+}`;
+
+const pbr   = programa(VS_PBR, FS_PBR);
+const cielo = programa(VS_CIELO, FS_CIELO);
+
+// ==========================================================================
+//  Geometria
+// ==========================================================================
+function malla (pos, nor, uv, idx) {
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  const sub = (data, loc, n) => {
+    const b = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, n, gl.FLOAT, false, 0, 0);
+  };
+  sub(pos, 0, 3); sub(nor, 1, 3); sub(uv, 2, 2);
+  const ib = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+  return { vao, n: idx.length };
+}
+
+function esfera (seg = 56, anillos = 36) {
+  const pos = [], nor = [], uv = [], idx = [];
+  for (let y = 0; y <= anillos; y++) {
+    const v = y/anillos, th = v*Math.PI;
+    for (let x = 0; x <= seg; x++) {
+      const u = x/seg, ph = u*Math.PI*2;
+      const nx = Math.sin(th)*Math.cos(ph), ny = Math.cos(th), nz = Math.sin(th)*Math.sin(ph);
+      pos.push(nx, ny, nz); nor.push(nx, ny, nz);
+      // proyeccion equirectangular: 2 repeticiones a lo ancho para no estirar el detalle
+      uv.push(u*2.0, v);
+    }
+  }
+  for (let y = 0; y < anillos; y++) for (let x = 0; x < seg; x++) {
+    const a = y*(seg+1)+x, b = a+seg+1;
+    idx.push(a, b, a+1, a+1, b, b+1);
+  }
+  return malla(new Float32Array(pos), new Float32Array(nor), new Float32Array(uv), new Uint16Array(idx));
+}
+
+// cubo con aristas redondeadas: las aristas convexas son donde se ve el
+// desgaste de canto, asi que tienen que existir de verdad en la geometria.
+function cuboRedondo (n = 14, r = 0.14) {
+  const pos = [], nor = [], uv = [], idx = [];
+  const ejes = [
+    [[1,0,0],[0,1,0],[0,0,1]], [[-1,0,0],[0,1,0],[0,0,-1]],
+    [[0,1,0],[0,0,1],[1,0,0]], [[0,-1,0],[0,0,-1],[1,0,0]],
+    [[0,0,1],[0,1,0],[-1,0,0]], [[0,0,-1],[0,1,0],[1,0,0]]
+  ];
+  const a = 1 - r;
+  let base = 0;
+  for (const [N, U, V] of ejes) {
+    for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
+      const s = i/n*2-1, t = j/n*2-1;
+      const p = [N[0] + U[0]*s + V[0]*t, N[1] + U[1]*s + V[1]*t, N[2] + U[2]*s + V[2]*t];
+      const in_ = [Math.max(-a, Math.min(a, p[0])), Math.max(-a, Math.min(a, p[1])), Math.max(-a, Math.min(a, p[2]))];
+      let d = [p[0]-in_[0], p[1]-in_[1], p[2]-in_[2]];
+      const l = Math.hypot(...d) || 1; d = d.map(v => v/l);
+      pos.push(in_[0]+d[0]*r, in_[1]+d[1]*r, in_[2]+d[2]*r);
+      nor.push(d[0], d[1], d[2]);
+      uv.push(i/n, j/n);
+    }
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const k = base + j*(n+1)+i;
+      idx.push(k, k+n+1, k+1, k+1, k+n+1, k+n+2);
+    }
+    base += (n+1)*(n+1);
+  }
+  return malla(new Float32Array(pos), new Float32Array(nor), new Float32Array(uv), new Uint16Array(idx));
+}
+
+function plano (s = 1) {
+  return malla(
+    new Float32Array([-s,0,s, s,0,s, s,0,-s, -s,0,-s]),
+    new Float32Array([0,1,0, 0,1,0, 0,1,0, 0,1,0]),
+    new Float32Array([0,1, 1,1, 1,0, 0,0]),
+    new Uint16Array([0,1,2, 0,2,3]));
+}
+function quadVertical (s = 1) {
+  return malla(
+    new Float32Array([-s,-s,0, s,-s,0, s,s,0, -s,s,0]),
+    new Float32Array([0,0,1, 0,0,1, 0,0,1, 0,0,1]),
+    new Float32Array([0,1, 1,1, 1,0, 0,0]),
+    new Uint16Array([0,1,2, 0,2,3]));
+}
+
+const gEsfera = esfera();
+const gCubo   = cuboRedondo();
+const gPlano  = plano(1);
+const gQuad   = quadVertical(1);
+
+// ==========================================================================
+//  Entorno procedural (atardecer industrial) -> equirectangular con mipmaps
+// ==========================================================================
+function crearEntorno (W = 512, H = 256) {
+  const d = new Uint8ClampedArray(W*H*4);
+  const solAz = 2.35, solEl = 0.13;                 // sol bajo: atardecer
+  const sol = [Math.sin(solAz)*Math.cos(solEl), Math.sin(solEl), Math.cos(solAz)*Math.cos(solEl)];
+  const ru = (x, y) => {                            // ruido de valor para nubes
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x-xi, yf = y-yi;
+    const h = (a, b) => { const s = Math.sin(a*127.1 + b*311.7)*43758.5453; return s - Math.floor(s); };
+    const u = xf*xf*(3-2*xf), v = yf*yf*(3-2*yf);
+    return (h(xi,yi)*(1-u)+h(xi+1,yi)*u)*(1-v) + (h(xi,yi+1)*(1-u)+h(xi+1,yi+1)*u)*v;
+  };
+  for (let y = 0; y < H; y++) {
+    const th = (y+0.5)/H*Math.PI, st = Math.sin(th), cy = Math.cos(th);
+    for (let x = 0; x < W; x++) {
+      const ph = ((x+0.5)/W - 0.5)*Math.PI*2;
+      const dx = st*Math.sin(ph), dz = st*Math.cos(ph);
+      const dot = dx*sol[0] + cy*sol[1] + dz*sol[2];
+      let r, g, b;
+      if (cy > 0) {
+        const t = Math.pow(cy, 0.55);
+        // cenit azul profundo -> horizonte calido
+        r = 0.16 + (0.92-0.16)*(1-t); g = 0.24 + (0.63-0.24)*(1-t); b = 0.44 + (0.42-0.44)*(1-t);
+        const halo = Math.pow(Math.max(0, dot), 5.0);
+        r += halo*1.35; g += halo*0.72; b += halo*0.22;
+        const disco = dot > 0.9994 ? 1 : 0;
+        r += disco*7; g += disco*5.2; b += disco*3.2;
+        // nubes altas
+        let n = ru(x/W*7+1.3, y/H*7) * 0.55 + ru(x/W*15+4.1, y/H*15)*0.3 + ru(x/W*31, y/H*31)*0.15;
+        n = Math.max(0, (n - 0.48)) * (1 - Math.pow(cy, 1.6)) * 2.4;
+        const nb = 0.55 + Math.pow(Math.max(0, dot), 2.0)*0.9;
+        r = r*(1-n*0.7) + n*nb*0.95; g = g*(1-n*0.7) + n*nb*0.72; b = b*(1-n*0.7) + n*nb*0.66;
+        // silueta industrial: naves, torres y depositos recortados contra el sol.
+        // Es lo que da al reflejo del metal una linea de horizonte reconocible.
+        const sil = 0.020 + 0.042*Math.pow(ru(x/W*9+2.7, 3.3), 2.0)
+                          + 0.026*ru(x/W*23+9.1, 7.7) + 0.014*ru(x/W*61+1.9, 5.1);
+        if (cy < sil) { const k = 0.14 + 0.10*(cy/sil); r *= k; g *= k*0.97; b *= k*1.04; }
+      } else {
+        // suelo: asfalto oscuro que apenas rebota luz naranja
+        const t = Math.pow(-cy, 0.6);
+        const reb = Math.pow(Math.max(0, dot), 3.0)*0.10;
+        r = (0.050 + reb)*(1-t*0.42); g = (0.044 + reb*0.60)*(1-t*0.42); b = (0.042 + reb*0.28)*(1-t*0.42);
+        const n = ru(x/W*24, y/H*24)*0.30;
+        r *= 0.80+n; g *= 0.80+n; b *= 0.80+n;
+      }
+      const k = (y*W+x)*4;
+      const co = (v) => Math.pow(Math.min(1, Math.max(0, v)), 1/2.2)*255;
+      d[k] = co(r); d[k+1] = co(g); d[k+2] = co(b); d[k+3] = 255;
+    }
+  }
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, d);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  return { tex: t, lods: Math.log2(W) };
+}
+const ENTORNO = crearEntorno();
+const SOL_DIR = (() => {
+  const az = 2.35, el = 0.13;
+  return [Math.sin(az)*Math.cos(el), Math.sin(el), Math.cos(az)*Math.cos(el)];
+})();
+
+// ==========================================================================
+//  Subida de texturas
+// ==========================================================================
+function subirTex (fuente, srgbLineal = false) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, fuente);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  if (aniso) gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, maxAniso));
+  return t;
+}
+function subirCalco (fuente) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, fuente);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  return t;
+}
+
+// ==========================================================================
+//  Escena
+// ==========================================================================
+const COLS = 6, FILAS = 4, PASO_X = 3.05, PASO_Y = 3.00;
+const objetos = [], etiquetas = [], calcos = [];
+let planoTex = null;
+
+function posCelda (i) {
+  const cx = i % COLS, cy = Math.floor(i / COLS);
+  return [(cx - (COLS-1)/2) * PASO_X, 0, (cy - (FILAS-1)/2) * PASO_Y];
+}
+
+async function construir () {
+  const est = document.getElementById('estado');
+  const carg = document.getElementById('cargando');
+
+  for (let i = 0; i < NOMBRES.length; i++) {
+    const nombre = NOMBRES[i];
+    carg.textContent = `Generando materiales…  ${i+1}/${NOMBRES.length}  ${MATERIALES[nombre].etiqueta}`;
+    const m = await crearMaterial(nombre, { resolucion: RES, semilla: 7 });
+    const tex = {
+      albedo: subirTex(m.albedo), normal: subirTex(m.normal),
+      rug: subirTex(m.rugosidad), met: subirTex(m.metalico), ocl: subirTex(m.oclusion)
+    };
+    for (const k of ['albedo','normal','rugosidad','metalico','oclusion','altura']) {
+      if (m[k] && m[k].close) m[k].close();       // liberar los ImageBitmap
+    }
+    const [px, , pz] = posCelda(i);
+    objetos.push({ geo: gEsfera, M: M4.trs(px - 0.80, 0.86, pz, 0.82), tex, uvEsc: 1.0, nombre });
+    objetos.push({ geo: gCubo,   M: M4.trs(px + 0.85, 0.74, pz, 0.72), tex, uvEsc: 1.0, nombre });
+    // el ancla es el propio centro de la celda; el desplazamiento "debajo" se
+    // aplica en pantalla, que es donde de verdad significa debajo.
+    etiquetas.push({ p: [px, 0.0, pz], texto: MATERIALES[nombre].etiqueta,
+                     desp: 30 + (i % COLS % 2) * 21 });
+    if (nombre === 'hormigon_liso') planoTex = tex;
+    if (i % 4 === 3) await new Promise(r => setTimeout(r, 0));
+  }
+
+  // panel de calcomanias sobre una pared de hormigon
+  for (let i = 0; i < NOMBRES_CALCOMANIAS.length; i++) {
+    const nombre = NOMBRES_CALCOMANIAS[i];
+    carg.textContent = `Generando calcomanías…  ${i+1}/${NOMBRES_CALCOMANIAS.length}`;
+    const c = await crearCalcomania(nombre, { resolucion: 512, semilla: 3 });
+    calcos.push({
+      color: subirCalco(c.color), normal: subirCalco(c.normal), ard: subirCalco(c.ard),
+      etiqueta: CALCOMANIAS[nombre].etiqueta
+    });
+    for (const k of ['color','normal','ard']) if (c[k] && c[k].close) c[k].close();
+  }
+
+  const s = estadisticas();
+  est.textContent = `${NOMBRES.length} materiales + ${NOMBRES_CALCOMANIAS.length} calcomanías · ${RES}px · ` +
+                    `generación ${s.msGenerado.toFixed(0)} ms`;
+  carg.style.display = 'none';
+  return s;
+}
+
+// -------------------------------------------------------------------- camaras
+const Z_MURO = -13.0;                       // muro de calcomanias, detras de la rejilla
+const CAMARAS = [
+  // 0 vista general de las 24 familias
+  { ojo: [0, 13.0, 13.4],    obj: [0, 0.10, -0.4],   fov: 44 },
+  // 1 filas 1-2 en picado (hormigones, asfaltos, ladrillo, yeso, tierra, grava, metales)
+  { ojo: [0, 6.4, 2.2],      obj: [0, 0.70, -3.3],   fov: 36 },
+  // 2 filas 3-4 (chapa, aluminio, oxido, pintura, maderas, sinteticos)
+  { ojo: [0, 5.8, 10.0],     obj: [0, 0.70, 3.4],    fov: 36 },
+  // 3 rasante a lo largo de la fila 2: el angulo que delata al metal
+  { ojo: [-12.6, 1.55, -1.5],obj: [7.0, 0.95, -1.5], fov: 20 },
+  // 4 primer plano a ~1 m de hormigon rugoso (microdetalle)
+  { ojo: [-4.60, 1.42, -2.55], obj: [-4.60, 0.80, -4.5], fov: 36 },
+  // 5 muro de calcomanias
+  { ojo: [0, 1.85, -6.3],    obj: [0, 1.70, Z_MURO],  fov: 40 }
+];
+let camActual = 0;
+
+// ==========================================================================
+//  Dibujo
+// ==========================================================================
+let W = 1, H = 1;
+function redimensionar () {
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  W = Math.round(lienzo.clientWidth * dpr); H = Math.round(lienzo.clientHeight * dpr);
+  lienzo.width = W; lienzo.height = H;
+  const tx = document.getElementById('texto');
+  tx.width = lienzo.clientWidth; tx.height = lienzo.clientHeight;
+}
+window.addEventListener('resize', redimensionar);
+
+let stats = { fotos: 0, t0: performance.now(), drawCalls: 0, triangulos: 0 };
+
+function invertir (m) {
+  const inv = new Float32Array(16), a = m;
+  const a00=a[0],a01=a[1],a02=a[2],a03=a[3],a10=a[4],a11=a[5],a12=a[6],a13=a[7],
+        a20=a[8],a21=a[9],a22=a[10],a23=a[11],a30=a[12],a31=a[13],a32=a[14],a33=a[15];
+  const b00=a00*a11-a01*a10, b01=a00*a12-a02*a10, b02=a00*a13-a03*a10,
+        b03=a01*a12-a02*a11, b04=a01*a13-a03*a11, b05=a02*a13-a03*a12,
+        b06=a20*a31-a21*a30, b07=a20*a32-a22*a30, b08=a20*a33-a23*a30,
+        b09=a21*a32-a22*a31, b10=a21*a33-a23*a31, b11=a22*a33-a23*a32;
+  let det = b00*b11-b01*b10+b02*b09+b03*b08-b04*b07+b05*b06;
+  if (!det) return M4.ident(); det = 1/det;
+  inv[0]=(a11*b11-a12*b10+a13*b09)*det; inv[1]=(a02*b10-a01*b11-a03*b09)*det;
+  inv[2]=(a31*b05-a32*b04+a33*b03)*det; inv[3]=(a22*b04-a21*b05-a23*b03)*det;
+  inv[4]=(a12*b08-a10*b11-a13*b07)*det; inv[5]=(a00*b11-a02*b08+a03*b07)*det;
+  inv[6]=(a32*b02-a30*b05-a33*b01)*det; inv[7]=(a20*b05-a22*b02+a23*b01)*det;
+  inv[8]=(a10*b10-a11*b08+a13*b06)*det; inv[9]=(a01*b08-a00*b10-a03*b06)*det;
+  inv[10]=(a30*b04-a31*b02+a33*b00)*det; inv[11]=(a21*b02-a20*b04-a23*b00)*det;
+  inv[12]=(a11*b07-a10*b09-a12*b06)*det; inv[13]=(a00*b09-a01*b07+a02*b06)*det;
+  inv[14]=(a31*b01-a30*b03-a32*b00)*det; inv[15]=(a20*b03-a21*b01+a22*b00)*det;
+  return inv;
+}
+
+let VP = M4.ident(), ojoAct = [0,0,0];
+
+function ligarTex (u, unidad, tex) {
+  gl.activeTexture(gl.TEXTURE0 + unidad);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.uniform1i(u, unidad);
+}
+
+function dibujar () {
+  const cam = CAMARAS[camActual];
+  const P = M4.persp(cam.fov*Math.PI/180, W/H, 0.05, 200);
+  const V = M4.mirar(cam.ojo, cam.obj, [0,1,0]);
+  VP = M4.mul(P, V); ojoAct = cam.ojo;
+
+  gl.viewport(0, 0, W, H);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.enable(gl.CULL_FACE);
+  gl.disable(gl.BLEND);
+  gl.clearColor(0.04, 0.05, 0.06, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  // cielo
+  gl.depthMask(false);
+  gl.useProgram(cielo.p);
+  gl.uniformMatrix4fv(cielo.u.uInvVP, false, invertir(VP));
+  ligarTex(cielo.u.mEnv, 0, ENTORNO.tex);
+  gl.uniform1f(cielo.u.uEnvInt, 1.0);
+  gl.bindVertexArray(null);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.depthMask(true);
+
+  gl.useProgram(pbr.p);
+  gl.uniformMatrix4fv(pbr.u.uVP, false, VP);
+  gl.uniform3fv(pbr.u.uCam, cam.ojo);
+  gl.uniform3fv(pbr.u.uLuzDir, SOL_DIR);
+  gl.uniform3f(pbr.u.uLuzCol, 1.0, 0.76, 0.52);
+  gl.uniform1f(pbr.u.uLuzInt, 3.1);
+  gl.uniform1f(pbr.u.uEnvInt, 1.35);
+  gl.uniform1f(pbr.u.uEnvLods, ENTORNO.lods);
+  gl.uniform1f(pbr.u.uNormalFuerza, 1.0);
+  gl.uniform1i(pbr.u.uEsCalco, 0);
+  ligarTex(pbr.u.mEnv, 5, ENTORNO.tex);
+
+  let dc = 0, tri = 0;
+
+  // suelo de hormigon
+  if (planoTex) {
+    gl.uniformMatrix4fv(pbr.u.uM, false, M4.trs(0, -0.02, 0, 22));
+    gl.uniform1f(pbr.u.uUvEsc, 26.0);
+    ligarTex(pbr.u.mAlbedo, 0, planoTex.albedo);
+    ligarTex(pbr.u.mNormal, 1, planoTex.normal);
+    ligarTex(pbr.u.mRug, 2, planoTex.rug);
+    ligarTex(pbr.u.mMet, 3, planoTex.met);
+    ligarTex(pbr.u.mOcl, 4, planoTex.ocl);
+    gl.bindVertexArray(gPlano.vao);
+    gl.drawElements(gl.TRIANGLES, gPlano.n, gl.UNSIGNED_SHORT, 0);
+    dc++; tri += gPlano.n/3;
+  }
+
+  for (const o of objetos) {
+    gl.uniformMatrix4fv(pbr.u.uM, false, o.M);
+    gl.uniform1f(pbr.u.uUvEsc, o.uvEsc);
+    ligarTex(pbr.u.mAlbedo, 0, o.tex.albedo);
+    ligarTex(pbr.u.mNormal, 1, o.tex.normal);
+    ligarTex(pbr.u.mRug, 2, o.tex.rug);
+    ligarTex(pbr.u.mMet, 3, o.tex.met);
+    ligarTex(pbr.u.mOcl, 4, o.tex.ocl);
+    gl.bindVertexArray(o.geo.vao);
+    gl.drawElements(gl.TRIANGLES, o.geo.n, gl.UNSIGNED_SHORT, 0);
+    dc++; tri += o.geo.n/3;
+  }
+
+  // ---- muro de calcomanias (delante de la rejilla)
+  if (calcos.length && planoTex) {
+    const zMuro = Z_MURO;
+    gl.uniform1f(pbr.u.uUvEsc, 5.0);
+    gl.uniformMatrix4fv(pbr.u.uM, false, new Float32Array([
+      5.2,0,0,0, 0,2.6,0,0, 0,0,1,0, 0, 2.3, zMuro, 1]));
+    ligarTex(pbr.u.mAlbedo, 0, planoTex.albedo);
+    ligarTex(pbr.u.mNormal, 1, planoTex.normal);
+    ligarTex(pbr.u.mRug, 2, planoTex.rug);
+    ligarTex(pbr.u.mMet, 3, planoTex.met);
+    ligarTex(pbr.u.mOcl, 4, planoTex.ocl);
+    gl.bindVertexArray(gQuad.vao);
+    gl.drawElements(gl.TRIANGLES, gQuad.n, gl.UNSIGNED_SHORT, 0);
+    dc++; tri += 2;
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.uniform1i(pbr.u.uEsCalco, 1);
+    gl.uniform1f(pbr.u.uUvEsc, 1.0);
+    for (let i = 0; i < calcos.length; i++) {
+      const x = (i - (calcos.length-1)/2) * 1.30;
+      gl.uniformMatrix4fv(pbr.u.uM, false, new Float32Array([
+        0.56,0,0,0, 0,0.56,0,0, 0,0,0.56,0, x, 2.35, zMuro + 0.014, 1]));
+      ligarTex(pbr.u.mAlbedo, 0, calcos[i].color);
+      ligarTex(pbr.u.mNormal, 1, calcos[i].normal);
+      ligarTex(pbr.u.mArd, 6, calcos[i].ard);
+      gl.bindVertexArray(gQuad.vao);
+      gl.drawElements(gl.TRIANGLES, gQuad.n, gl.UNSIGNED_SHORT, 0);
+      dc++; tri += 2;
+    }
+    gl.uniform1i(pbr.u.uEsCalco, 0);
+    gl.disable(gl.BLEND);
+  }
+
+  gl.bindVertexArray(null);
+  stats.drawCalls = dc; stats.triangulos = tri;
+  dibujarEtiquetas();
+}
+
+// ------------------------------------------------------------- etiquetas 2D
+const ctx = document.getElementById('texto').getContext('2d');
+function proyectar (p) {
+  const x = VP[0]*p[0] + VP[4]*p[1] + VP[8]*p[2] + VP[12];
+  const y = VP[1]*p[0] + VP[5]*p[1] + VP[9]*p[2] + VP[13];
+  const w = VP[3]*p[0] + VP[7]*p[1] + VP[11]*p[2] + VP[15];
+  if (w <= 0) return null;
+  return [(x/w*0.5+0.5)*ctx.canvas.width, (1-(y/w*0.5+0.5))*ctx.canvas.height, w];
+}
+function dibujarEtiquetas () {
+  const c = ctx.canvas;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const lista = etiquetas.concat(
+    calcos.map((k, i) => ({ p: [(i-(calcos.length-1)/2)*1.30, 1.62, Z_MURO + 0.02],
+                            texto: k.etiqueta, desp: 26 + (i % 2) * 20 })));
+  for (const e of lista) {
+    const q = proyectar(e.p);
+    if (!q) continue;
+    if (q[0] < -180 || q[0] > c.width+180 || q[1] < -40 || q[1] > c.height+60) continue;
+    const esc = Math.max(0.52, Math.min(1.6, 13 / q[2]));
+    const fs = Math.max(9, Math.round(14.5*esc));
+    q[1] += (e.desp || 30) * esc;
+    ctx.font = `600 ${fs}px "Segoe UI",system-ui,sans-serif`;
+    const w = ctx.measureText(e.texto).width;
+    ctx.fillStyle = 'rgba(8,10,13,0.62)';
+    ctx.beginPath();
+    const rx = w/2+8, ry = fs*0.85;
+    ctx.roundRect ? ctx.roundRect(q[0]-rx, q[1]-ry, rx*2, ry*2, 4) : ctx.rect(q[0]-rx, q[1]-ry, rx*2, ry*2);
+    ctx.fill();
+    ctx.fillStyle = '#e9eef4';
+    ctx.fillText(e.texto, q[0], q[1]+1);
+  }
+}
+
+// ==========================================================================
+//  Bucle y API del arnes
+// ==========================================================================
+let ultimo = performance.now();
+function bucle () {
+  const ahora = performance.now();
+  ultimo = ahora;
+  dibujar();
+  stats.fotos++;
+  requestAnimationFrame(bucle);
+}
+
+redimensionar();
+construir().then((s) => {
+  const carga = performance.now() - t0;
+  dibujar();
+  requestAnimationFrame(bucle);
+  window.__BENCH = {
+    ready: true,
+    loadTimeMs: carga,
+    generacionMs: s.msGenerado,
+    setCamera (i) { camActual = Math.max(0, Math.min(CAMARAS.length-1, i|0)); },
+    phase () {},
+    resetStats () { stats.fotos = 0; stats.t0 = performance.now(); },
+    stats () {
+      const dt = (performance.now() - stats.t0) / 1000;
+      return {
+        fps: dt > 0 ? stats.fotos/dt : 0,
+        drawCalls: stats.drawCalls,
+        triangles: Math.round(stats.triangulos),
+        bodies: 0, activeBodies: 0,
+        texturasMB: +(NOMBRES.length*5*RES*RES*4/1048576*1.33).toFixed(1),
+        generacionMs: +s.msGenerado.toFixed(0),
+        materiales: NOMBRES.length, calcomanias: NOMBRES_CALCOMANIAS.length
+      };
+    }
+  };
+}).catch(e => {
+  document.getElementById('cargando').textContent = 'ERROR: ' + e.message;
+  console.error(e);
+  window.__BENCH.ready = true;
+  window.__BENCH.error = String(e && e.message || e);
+});
+</script>
+</body>
+</html>

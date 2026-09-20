@@ -162,3 +162,49 @@ Notas de honestidad sobre estas cifras:
 
 Ninguno de los dos pasa todavía el listón. Ambos builders han sido reanudados con el encargo
 de corregir su mayor delta, que en los dos casos es **la imagen**, no el rendimiento.
+
+---
+
+## Componente: biblioteca de materiales PBR procedurales
+
+**Referencia usada:** materiales reales a 1 m de distancia (hormigón con árido visible, veta de
+madera, costra de óxido, goma mate). **Punto de partida a batir:**
+`gauntlet/results/three-rapier/cam3.png`, donde el hormigón era gris plano con puntitos, las
+cajas no tenían veta y los neumáticos parecían plástico.
+
+**Capturas:** `gauntlet/results/materiales/` (arnés neutral, 24 materiales + 7 calcomanías).
+
+**Técnica que marca la diferencia (y por qué importa):** dos pasadas WebGL2. La receta escribe
+altura, color, rugosidad, metálico y cavidad; la segunda pasada **deriva de la forma**: normal
+por Sobel, oclusión por 14 muestras en espiral áurea, curvatura por laplaciano. Con eso la
+suciedad se deposita **donde hay cavidad** y la pintura salta **donde la curvatura es convexa**.
+Eso es lo que separa un material creíble de uno falso: el desgaste está correlacionado con el
+relieve, no superpuesto como ruido independiente. El mismo mecanismo con el signo invertido da
+el asfalto mojado (el agua llena los huecos y les baja la rugosidad a 0,045).
+
+**Juicio propio, mirando las capturas:**
+
+Lo conseguido — hormigón desconchado con árido y pasta de cemento visibles, óxido con costra
+celular convincente, madera con veta real en tabla y contrachapado, ladrillo con suciedad en la
+junta, grava, asfalto. Es un salto grande respecto al punto de partida.
+
+Defectos que quedan, anotados sin adornos:
+1. **Pellizco polar en las esferas del visor**: destello azul/blanco en el polo de chapa
+   ondulada, aluminio rayado y vidrio sucio. Es artefacto de la proyección equirectangular del
+   visor, no del material, pero corrompe el juicio.
+2. **La goma lee como negro plano**, sin microrrelieve perceptible.
+3. **Manchas especulares quemadas** en metal oxidado y aluminio rayado.
+4. **Las etiquetas del visor no identifican de forma fiable qué material es cuál** (se solapan
+   en espacio de pantalla). Es un defecto del instrumento de juicio, no del producto, y limita
+   lo que puedo concluir del visor.
+5. El propio constructor deja anotado: hormigón liso algo plano a media distancia y la
+   calcomanía de grieta demasiado tenue.
+
+**Decisión:** se acepta como base y se integra. Seguir puliendo materiales dentro de un visor
+sintético tiene rendimiento decreciente: el juicio que vale es cómo se ven **en el juego**,
+sobre la geometría real, con la iluminación real. Los defectos 1 y 4 son del visor y
+desaparecen al integrar; 2 y 3 se reevalúan en situ.
+
+**Dato de rendimiento, honesto:** el despacho JS de las 24 familias es ~240 ms, pero el ciclo
+completo en este contenedor tarda ~25 s porque rasteriza por CPU con SwiftShader. El objetivo
+de "<4 s a 1024" es un objetivo de GPU y **aquí no es medible**: no se da por cumplido.
