@@ -72,3 +72,34 @@ window.__JUEGO = {
 - El HUD debe poder ocultarse completamente para capturas limpias.
 - El juego debe funcionar con el puntero **no** bloqueado (el arnés no puede bloquear el ratón):
   `mirarRelativo` es el camino de entrada para la vista en automatización.
+
+---
+
+## Modo determinista de captura (requisito duro)
+
+Hallazgo del gauntlet técnico: bajo rasterizado por software el bucle normal (`requestAnimationFrame`
+con paso de tiempo real) avanza la física según el reloj de pared. Dos ejecuciones del mismo
+build con la misma semilla producen resultados distintos, y eso **invalida el juicio A/B**:
+no se puede saber si una diferencia entre dos capturas se debe al cambio o al azar.
+
+Por tanto el juego debe poder ceder el control del reloj al arnés:
+
+```ts
+window.__JUEGO.determinista = {
+  activar(semilla: number): void,   // detiene el bucle rAF y fija el generador aleatorio
+  avanzar(pasos: number): void,     // ejecuta N pasos de física de dt FIJO (1/60) sin renderizar
+  renderizar(): void,               // dibuja exactamente un fotograma del estado actual
+  desactivar(): void,               // vuelve al bucle normal en tiempo real
+}
+```
+
+Con esto, una captura reproducible es:
+`activar(7)` → `avanzar(300)` → `renderizar()` → screenshot.
+El mismo build y la misma semilla deben dar **la misma imagen, píxel a píxel**, en dos
+ejecuciones distintas. Es la condición que hace fiable todo el bucle de crítica.
+
+Consecuencias de diseño que esto impone:
+- La simulación usa **paso fijo con acumulador**; nada de `dt` variable dentro de la física.
+- Todo uso de azar (partículas, dispersión, fractura, IA) pasa por un PRNG con semilla propia,
+  nunca por `Math.random()` directamente.
+- Las animaciones y los VFX avanzan con el reloj de la simulación, no con el del navegador.
