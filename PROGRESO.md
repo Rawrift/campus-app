@@ -37,9 +37,9 @@ construye WebGL2-first (verificable) y se deja la puerta abierta a una ruta WebG
 
 | Candidato | Estado |
 |---|---|
-| Three.js + Rapier3D | en construcción |
+| Three.js + Rapier3D | medido (imagen en corrección) |
 | Babylon.js 9 + Havok | en construcción |
-| PlayCanvas 2.x + física | en construcción |
+| PlayCanvas 2.x + física | medido |
 | Godot 4 → export web | ❌ **DESCARTADO** (evidencia abajo) |
 
 _(resultados de los tres stacks JS, abajo, cuando completen)_
@@ -82,3 +82,49 @@ definido. Es falso. Re-verificado por el agente líder en los dos binarios dispo
 flags, incluido `--enable-unsafe-webgpu --use-webgpu-adapter=swiftshader`:
 `typeof navigator.gpu === "undefined"` en los seis casos. Se mantiene la conclusión original:
 aquí no hay WebGPU y la ruta WebGPU no es verificable.
+
+
+---
+
+## Mediciones del Gauntlet 001 (arnés neutral, ejecutadas en secuencia)
+
+Ejecutadas por el agente líder con `tools/bench.mjs`, no por los builders. Secuencialmente,
+nunca en paralelo: bajo rasterizado software dos procesos compitiendo por 4 núcleos falsearían
+la comparación.
+
+| Métrica | Three.js + Rapier | PlayCanvas + Ammo |
+|---|---|---|
+| FPS cámaras (idle) | **247 – 290** | 0,5 – 1,4 |
+| FPS fase props (445/450 cuerpos) | 146 | 1,25 |
+| FPS fase explosión | 69 | 0,49 |
+| FPS fase ragdoll | 54 | 0,48 |
+| FPS fase caos | **59** (781 cuerpos, 778 activos) | 1,17 (626 cuerpos) |
+| Triángulos | 80 437 | 362 026 |
+| Draw calls | 85 | 167 |
+| Payload real (gzip) | 1,19 MB | 1,04 MB |
+| Tiempo hasta `ready` | 8,7 s | 6,8 s |
+| Errores de consola | **0** | **0** |
+
+Notas de honestidad sobre estas cifras:
+
+- PlayCanvas dibuja 4,5x más triángulos, pero eso no explica ser 50x más lento. Bajo
+  SwiftShader domina el coste de shader y de relleno, y el pipeline PBR por defecto de
+  PlayCanvas es mucho más caro por píxel. En una GPU real la distancia se estrecharía; el
+  orden, no.
+- Ambos candidatos se midieron **a medio terminar**: sus builders se cortaron por un límite de
+  API. Las cifras de física y coste son válidas; el juicio visual todavía no es justo y por eso
+  no se ha emitido.
+- Corrección de una medición propia anterior: un `find` mal formado me dio un payload de 2 GB
+  de wasm para Three. Es falso — Rapier-compat embebe el wasm en base64 dentro del JS y no hay
+  `.wasm` suelto. Las cifras de la tabla son las buenas.
+
+### Estado visual (mirado, no supuesto)
+
+- **Three.js**: la niebla y la exposición lavan la escena a blanco. Hay estructura real (nave,
+  farolas, contenedores, bidones, valla, columna de humo, asfalto mojado) pero sin contraste ni
+  color, con teselado de suelo evidente y el charco como un rectángulo negro.
+- **PlayCanvas**: la nave es una caja negra sin interior legible, el suelo tiene un patrón de
+  manchas desagradable y hay un contenedor rojo/verde que rompe la dirección artística.
+
+Ninguno de los dos pasa todavía el listón. Ambos builders han sido reanudados con el encargo
+de corregir su mayor delta, que en los dos casos es **la imagen**, no el rendimiento.

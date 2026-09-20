@@ -1,0 +1,17 @@
+{
+  "name": "@fragua/materiales",
+  "version": "1.0.0",
+  "description": "Biblioteca de materiales PBR procedurales, independiente de motor 3D. Genera albedo/normal/rugosidad/metalico/oclusion/altura teselables y propiedades fisicas.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./fisica": "./src/fisica.js",
+    "./catalogo": "./src/catalogo.js"
+  },
+  "files": ["src", "LEEME.md"],
+  "sideEffects": false,
+  "license": "MIT",
+  "dependencies": {},
+  "peerDependencies": {}
+}

@@ -46,6 +46,19 @@ export function placed(geo, x, y, z, rx, ry, rz) {
   return g;
 }
 
+// merge helper that tolerates mixed indexed / non-indexed inputs
+export function mergeSafe(parts) {
+  const list = parts.map((g) => {
+    const n = g.index ? g.toNonIndexed() : g;
+    const out = new THREE.BufferGeometry();
+    out.setAttribute('position', n.attributes.position);
+    out.setAttribute('normal', n.attributes.normal);
+    out.setAttribute('uv', n.attributes.uv);
+    return out;
+  });
+  return mergeGeometries(list, false);
+}
+
 function ibeamGeo(len, h, flange, tw, tf) {
   // I profile extruded along X
   const parts = [
@@ -53,7 +66,7 @@ function ibeamGeo(len, h, flange, tw, tf) {
     placed(boxGeo(len, tf, flange), 0, -h / 2 + tf / 2, 0),
     placed(boxGeo(len, h - tf * 2, tw), 0, 0, 0),
   ];
-  return mergeGeometries(parts, false);
+  return mergeSafe(parts);
 }
 
 /* --------------------------------------------------------------- materials */
@@ -187,15 +200,15 @@ export function buildScene(renderer) {
   envScene.add(bounce);
   const envRT = pmrem.fromScene(envScene, 0.02);
   scene.environment = envRT.texture;
-  scene.environmentIntensity = 1.0;
+  scene.environmentIntensity = 0.30;
   skyClone.geometry.dispose(); skyClone.material.dispose();
   bounce.geometry.dispose(); bounce.material.dispose();
   pmrem.dispose();
 
-  scene.fog = new THREE.FogExp2(0x9fb2c6, 0.0062);
+  scene.fog = new THREE.FogExp2(0x8ea6bd, 0.0042);
 
   /* ---------------- sun ---------------- */
-  const sun = new THREE.DirectionalLight(0xfff0d4, 3.35);
+  const sun = new THREE.DirectionalLight(0xfff0d4, 4.6);
   sun.position.copy(sunDir).multiplyScalar(120);
   sun.target.position.set(0, 0, 0);
   scene.add(sun.target);
@@ -208,7 +221,7 @@ export function buildScene(renderer) {
   sun.shadow.radius = 1.6;
   scene.add(sun);
 
-  const hemi = new THREE.HemisphereLight(0xa8c4e0, 0x3a3128, 0.35);
+  const hemi = new THREE.HemisphereLight(0xa8c4e0, 0x3a3128, 0.14);
   scene.add(hemi);
 
   /* =================================================================== GROUND */
@@ -221,6 +234,31 @@ export function buildScene(renderer) {
     mesh.receiveShadow = true;
     mesh.position.y = 0;
     scene.add(mesh);
+  }
+  // distant terrain beyond the 160 m pad, plus an industrial skyline for depth
+  {
+    const g = new THREE.PlaneGeometry(1400, 1400, 1, 1);
+    const uv = g.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 1400, uv.getY(i) * 1400);
+    g.rotateX(-Math.PI / 2);
+    const m = new THREE.MeshStandardMaterial({ color: 0x4a4740, roughness: 0.96, metalness: 0.0, envMapIntensity: 0.7 });
+    const far = new THREE.Mesh(g, m);
+    far.position.y = -0.06;
+    scene.add(far);
+    const r = rng(5150);
+    const blocks = [];
+    for (let i = 0; i < 26; i++) {
+      const a = r() * Math.PI * 2;
+      const d = 135 + r() * 190;
+      const w = 16 + r() * 46, h = 7 + r() * 26, dp = 14 + r() * 40;
+      blocks.push(placed(boxGeo(w, h, dp), Math.cos(a) * d, h / 2 - 1, Math.sin(a) * d, 0, r() * 3.14, 0));
+      if (r() > 0.65) {
+        const ch = 18 + r() * 30;
+        blocks.push(placed(cylGeo(1.7, 2.4, ch, 10, 1), Math.cos(a) * d + (r() - 0.5) * 20, ch / 2, Math.sin(a) * d + (r() - 0.5) * 20));
+      }
+    }
+    const bm = new THREE.Mesh(mergeSafe(blocks), new THREE.MeshStandardMaterial({ color: 0x5d6068, roughness: 0.9, metalness: 0.15, envMapIntensity: 0.8 }));
+    scene.add(bm);
   }
   // puddle / wet asphalt at (16,0,14)
   {
@@ -258,7 +296,7 @@ export function buildScene(renderer) {
       pg.rotateX(-Math.PI / 2);
       parts.push(placed(pg, -28 + r() * 56, 0.012, -26 + r() * 52, 0, r() * 6.28, 0));
     }
-    const mesh = new THREE.Mesh(mergeGeometries(parts, false), M.stain);
+    const mesh = new THREE.Mesh(mergeSafe(parts), M.stain);
     mesh.renderOrder = 1;
     scene.add(mesh);
   }
@@ -332,7 +370,7 @@ export function buildScene(renderer) {
     pp.push(placed(boxGeo(25.2, 0.55, 0.22), 0, 8.55, -8.5));
     pp.push(placed(boxGeo(0.22, 0.55, 17.2), 12.5, 8.55, 0));
     pp.push(placed(boxGeo(0.22, 0.55, 17.2), -12.5, 8.55, 0));
-    const ppm = new THREE.Mesh(mergeGeometries(pp, false), M.steel);
+    const ppm = new THREE.Mesh(mergeSafe(pp), M.steel);
     ppm.castShadow = true; ppm.receiveShadow = true; scene.add(ppm);
   }
   // 16 roof beams (I profile) + bracing
@@ -353,7 +391,7 @@ export function buildScene(renderer) {
         parts.push(placed(rod, x, 7.35, z, Math.PI / 2 * ((i % 2) ? 1 : -1) * 0.62, 0, 0));
       }
     }
-    const m = new THREE.Mesh(mergeGeometries(parts, false), M.steel);
+    const m = new THREE.Mesh(mergeSafe(parts), M.steel);
     m.castShadow = true; m.receiveShadow = true;
     scene.add(m);
   }
@@ -491,9 +529,9 @@ export function buildScene(renderer) {
       const cx = (s.a[0] + s.b[0]) / 2, cz = (s.a[1] + s.b[1]) / 2;
       posts.push(placed(cylGeo(0.04, 0.04, len, 7, 1), cx, 2.38, cz, Math.PI / 2, ang, 0));
     }
-    const pm = new THREE.Mesh(mergeGeometries(posts, false), M.steel);
+    const pm = new THREE.Mesh(mergeSafe(posts), M.steel);
     pm.castShadow = true; scene.add(pm);
-    const fm = new THREE.Mesh(mergeGeometries(panels, false), M.fence);
+    const fm = new THREE.Mesh(mergeSafe(panels), M.fence);
     scene.add(fm);
     scene.userData.fenceSegments = count;
   }
@@ -517,9 +555,9 @@ export function buildScene(renderer) {
       lens.push(placed(boxGeo(0.28, 0.04, 0.58), x + Math.sin(dir) * 1.32, 6.865, z + Math.cos(dir) * 1.32, 0, dir, 0));
       addBoxCollider(0.27, 7.0, 0.27, x, 3.5, z);
     }
-    const pm = new THREE.Mesh(mergeGeometries(parts, false), M.steel);
+    const pm = new THREE.Mesh(mergeSafe(parts), M.steel);
     pm.castShadow = true; pm.receiveShadow = true; scene.add(pm);
-    const lm = new THREE.Mesh(mergeGeometries(lens, false), M.lamp);
+    const lm = new THREE.Mesh(mergeSafe(lens), M.lamp);
     scene.add(lm);
     scene.userData.lampCount = spots.length;
     // a couple of real exterior lights where they read best
@@ -546,9 +584,9 @@ export function buildScene(renderer) {
       scene.add(l);
       interiorLights.push(l);
     }
-    const sm = new THREE.Mesh(mergeGeometries(shades, false), M.steel);
+    const sm = new THREE.Mesh(mergeSafe(shades), M.steel);
     sm.castShadow = true; scene.add(sm);
-    const em = new THREE.Mesh(mergeGeometries(emis, false), new THREE.MeshStandardMaterial({
+    const em = new THREE.Mesh(mergeSafe(emis), new THREE.MeshStandardMaterial({
       color: 0x120d06, emissive: new THREE.Color(0xffd7a2), emissiveIntensity: 14, roughness: 0.4, metalness: 0,
     }));
     scene.add(em);
@@ -558,7 +596,7 @@ export function buildScene(renderer) {
     tri.push(placed(cylGeo(0.03, 0.03, 1.6, 6, 1), -9.0, 0.8, 6.0, -0.16, 0, -0.1));
     tri.push(placed(cylGeo(0.03, 0.03, 1.6, 6, 1), -9.0, 0.8, 6.0, 0.0, 0, 0.2));
     tri.push(placed(boxGeo(0.44, 0.26, 0.16), -9.0, 1.68, 6.05));
-    const tm = new THREE.Mesh(mergeGeometries(tri, false), M.steel);
+    const tm = new THREE.Mesh(mergeSafe(tri), M.steel);
     tm.castShadow = true; scene.add(tm);
     const tl = new THREE.Mesh(placed(boxGeo(0.38, 0.20, 0.03), -9.0, 1.68, 6.15), new THREE.MeshStandardMaterial({
       color: 0x1a1509, emissive: new THREE.Color(0xfff0d0), emissiveIntensity: 22, roughness: 0.3, metalness: 0,
@@ -657,7 +695,7 @@ export function buildScene(renderer) {
   /* --------------------- merge static groups into few draw calls -------------- */
   function addMerged(parts, mat, cast, receive) {
     if (!parts.length) return null;
-    const g = mergeGeometries(parts, false);
+    const g = mergeSafe(parts);
     const m = new THREE.Mesh(g, mat);
     m.castShadow = !!cast; m.receiveShadow = !!receive;
     scene.add(m);
@@ -674,7 +712,7 @@ export function buildScene(renderer) {
   const plasticMesh = addMerged(plasticParts, M.plastic, true, true);
   if (plasticMesh) plasticMesh.material.side = THREE.DoubleSide;
   {
-    const gm = new THREE.Mesh(mergeGeometries(glassParts, false), M.glass);
+    const gm = new THREE.Mesh(mergeSafe(glassParts), M.glass);
     gm.renderOrder = 3;
     scene.add(gm);
     scene.userData.windowCount = glassParts.length;

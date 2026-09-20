@@ -63,6 +63,7 @@ export function golpe(ganancia, t0, pico, ataque, t60) {
   const fin = t0 + atk + Math.max(t60, 0.005);
   p.exponentialRampToValueAtTime(picoSeguro * 0.001, fin);
   p.linearRampToValueAtTime(0, fin + 0.006);
+  anotarSilencio(p, fin + 0.006);
   return fin + 0.012;
 }
 
@@ -80,47 +81,66 @@ export function sobre(ganancia, t0, pico, ataque, meseta, caida) {
   const fin = t0 + atk + Math.max(meseta, 0) + Math.max(caida, 0.005);
   p.exponentialRampToValueAtTime(picoSeguro * 0.001, fin);
   p.linearRampToValueAtTime(0, fin + 0.006);
+  anotarSilencio(p, fin + 0.006);
   return fin + 0.012;
 }
 
 /** Fundido de entrada para voces continuas. */
 export function entrar(ganancia, t0, destino, duracion = 0.08) {
-  const p = ganancia.gain;
-  const v = valorActual(p, t0);
-  p.cancelScheduledValues(t0);
-  p.setValueAtTime(v, t0);
-  p.linearRampToValueAtTime(Math.max(destino, 0), t0 + Math.max(duracion, RAMPA_MIN));
+  rampa(ganancia.gain, t0, Math.max(destino, 0), duracion);
 }
 
 /** Fundido de salida; devuelve el instante seguro de parada. */
 export function salir(ganancia, t0, duracion = 0.1) {
-  const p = ganancia.gain;
-  const v = valorActual(p, t0);
-  p.cancelScheduledValues(t0);
-  p.setValueAtTime(v, t0);
-  p.linearRampToValueAtTime(0, t0 + Math.max(duracion, RAMPA_MIN));
-  return t0 + Math.max(duracion, RAMPA_MIN) + 0.01;
+  const d = Math.max(duracion, RAMPA_MIN);
+  rampa(ganancia.gain, t0, 0, d);
+  return t0 + d + 0.01;
 }
 
-/** Rampa generica de un AudioParam sin saltos. */
+/** Rampa lineal de un AudioParam sin saltos. */
 export function rampa(param, t0, destino, duracion = 0.06) {
+  const d = Math.max(duracion, RAMPA_MIN);
   const v = valorActual(param, t0);
   param.cancelScheduledValues(t0);
   param.setValueAtTime(v, t0);
-  param.linearRampToValueAtTime(destino, t0 + Math.max(duracion, RAMPA_MIN));
+  param.linearRampToValueAtTime(destino, t0 + d);
+  anotar(param, t0, v, t0 + d, destino);
 }
 
 /** Rampa exponencial, apropiada para frecuencias (la percepcion del tono es logaritmica). */
 export function rampaFrec(param, t0, destino, duracion = 0.06) {
+  const d = Math.max(duracion, RAMPA_MIN);
   const v = Math.max(valorActual(param, t0), 1e-3);
+  const dst = Math.max(destino, 1e-3);
   param.cancelScheduledValues(t0);
   param.setValueAtTime(v, t0);
-  param.exponentialRampToValueAtTime(Math.max(destino, 1e-3), t0 + Math.max(duracion, RAMPA_MIN));
+  param.exponentialRampToValueAtTime(dst, t0 + d);
+  anotar(param, t0, v, t0 + d, dst);
 }
 
-function valorActual(param, t0) {
-  // En OfflineAudioContext `value` refleja el ultimo valor fijado; es suficiente como
-  // punto de partida de la rampa y evita el salto a cero.
-  const v = param.value;
-  return Number.isFinite(v) ? v : 0;
+// --- Seguimiento del valor programado -------------------------------------------------
+//
+// `AudioParam.value` devuelve el valor en `currentTime`, no el ultimo valor PROGRAMADO.
+// En un OfflineAudioContext currentTime vale 0 durante toda la fase de programacion, asi
+// que leerlo haria que cada rampa arrancase desde el valor inicial y se perdiera la
+// continuidad. En un contexto en vivo el problema es menor pero sigue existiendo (la
+// lectura va un bloque por detras). Se lleva por tanto un registro propio del ultimo
+// segmento programado por parametro, y se interpola dentro de el.
+
+const SEGMENTO = new WeakMap();
+
+function anotar(param, t0, v0, t1, v1) {
+  SEGMENTO.set(param, { t0, v0, t1, v1 });
 }
+
+function valorActual(param, t) {
+  const s = SEGMENTO.get(param);
+  if (!s) return Number.isFinite(param.value) ? param.value : 0;
+  if (t <= s.t0) return s.v0;
+  if (t >= s.t1) return s.v1;
+  const k = (t - s.t0) / Math.max(s.t1 - s.t0, 1e-9);
+  return s.v0 + (s.v1 - s.v0) * k;
+}
+
+/** Permite a las envolventes percusivas registrar su estado final (silencio). */
+export function anotarSilencio(param, t) { anotar(param, t, 0, t, 0); }

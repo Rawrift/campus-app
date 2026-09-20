@@ -1,0 +1,145 @@
+{
+  "label": "three-rapier",
+  "root": "/home/user/campus-app/gauntlet/tech/three-rapier",
+  "startedAt": "2026-09-20T15:08:55.337Z",
+  "errors": [],
+  "cameras": [
+    {
+      "tag": "cam0",
+      "fps": 220.5679625035101,
+      "frameMs": 4.53374999999869,
+      "p95FrameMs": 6.240000000005239,
+      "drawCalls": 90,
+      "triangles": 80581,
+      "programs": 53,
+      "bodies": 145,
+      "activeBodies": 27,
+      "jsHeapMB": 40.421264
+    },
+    {
+      "tag": "cam1",
+      "fps": 148.25796886582228,
+      "frameMs": 6.745000000000194,
+      "p95FrameMs": 7.705000000001746,
+      "drawCalls": 90,
+      "triangles": 80581,
+      "programs": 53,
+      "bodies": 145,
+      "activeBodies": 27,
+      "jsHeapMB": 35.535531
+    },
+    {
+      "tag": "cam2",
+      "fps": 309.119010819805,
+      "frameMs": 3.234999999993306,
+      "p95FrameMs": 3.2399999999906868,
+      "drawCalls": 83,
+      "triangles": 80341,
+      "programs": 53,
+      "bodies": 145,
+      "activeBodies": 27,
+      "jsHeapMB": 35.528135
+    },
+    {
+      "tag": "cam3",
+      "fps": 290.0652646843826,
+      "frameMs": 3.4475000000020373,
+      "p95FrameMs": 3.6450000000040745,
+      "drawCalls": 85,
+      "triangles": 80437,
+      "programs": 53,
+      "bodies": 145,
+      "activeBodies": 28,
+      "jsHeapMB": 36.456483
+    },
+    {
+      "tag": "cam4",
+      "fps": 247.01523260592782,
+      "frameMs": 4.048333333334692,
+      "p95FrameMs": 4.819999999992433,
+      "drawCalls": 88,
+      "triangles": 80453,
+      "programs": 53,
+      "bodies": 145,
+      "activeBodies": 27,
+      "jsHeapMB": 36.508595
+    },
+    {
+      "tag": "cam5",
+      "fps": 255.67273889438664,
+      "frameMs": 3.9112499999973807,
+      "p95FrameMs": 4.404999999998836,
+      "drawCalls": 90,
+      "triangles": 80581,
+      "programs": 53,
+      "bodies": 145,
+      "activeBodies": 38,
+      "jsHeapMB": 35.927995
+    }
+  ],
+  "phases": [
+    {
+      "tag": "phase_props",
+      "fps": 145.96409283326722,
+      "frameMs": 6.850999999995111,
+      "p95FrameMs": 9.029999999998836,
+      "drawCalls": 94,
+      "triangles": 144477,
+      "programs": 53,
+      "bodies": 445,
+      "activeBodies": 338,
+      "jsHeapMB": 36.991699
+    },
+    {
+      "tag": "phase_explosion",
+      "fps": 69.49270326615986,
+      "frameMs": 14.389999999999418,
+      "p95FrameMs": 16.68499999999767,
+      "drawCalls": 92,
+      "triangles": 144349,
+      "programs": 53,
+      "bodies": 445,
+      "activeBodies": 430,
+      "jsHeapMB": 37.987023
+    },
+    {
+      "tag": "phase_ragdoll",
+      "fps": 53.51170568561873,
+      "frameMs": 18.6875,
+      "p95FrameMs": 23.73499999998603,
+      "drawCalls": 92,
+      "triangles": 181469,
+      "programs": 53,
+      "bodies": 533,
+      "activeBodies": 503,
+      "jsHeapMB": 38.952799
+    },
+    {
+      "tag": "phase_chaos",
+      "fps": 58.61664712779229,
+      "frameMs": 17.05999999999767,
+      "p95FrameMs": 17.945000000006985,
+      "drawCalls": 94,
+      "triangles": 258893,
+      "programs": 53,
+      "bodies": 781,
+      "activeBodies": 778,
+      "jsHeapMB": 41.530107
+    }
+  ],
+  "readyWallMs": 8709,
+  "loadTimeMs": 8675.199999999997,
+  "postStress": {
+    "tag": "post_stress",
+    "fps": 50.932705163319596,
+    "frameMs": 19.633749999993597,
+    "p95FrameMs": 25.760000000009313,
+    "drawCalls": 94,
+    "triangles": 258893,
+    "programs": 53,
+    "bodies": 781,
+    "activeBodies": 777,
+    "jsHeapMB": 40.904459
+  },
+  "finishedAt": "2026-09-20T15:11:56.823Z"
+}
