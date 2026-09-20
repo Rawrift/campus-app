@@ -63,7 +63,7 @@ export function cadenaEspacial(motor, opciones = {}) {
   // Envio a reverberacion, pre-panner (mono) y ponderado por distancia y oclusion:
   // lo que esta tapado por un muro te llega casi solo por reverberacion.
   const envio = ctx.createGain();
-  const relacion = sujetar(0.12 + 0.55 * Math.min(1, distancia / 28), 0, 0.85);
+  const relacion = sujetar(0.10 + 0.50 * Math.min(1, distancia / 28), 0, 0.72);
   envio.gain.value = envioReverb * (relacion + oc * 0.30);
   gananciaOclusion.connect(envio);
   envio.connect(motor.mezcla.envio);

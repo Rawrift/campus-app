@@ -22,3 +22,7 @@ gauntlet/tech/*/.godot/
 .DS_Store
 *.log
 npm-debug.log*
+
+# audio: los WAV de verificación son regenerables (41 MB). Se versionan los PNG de
+# espectrograma y metricas.json, que son la evidencia que se puede inspeccionar.
+paquetes/audio/verificacion/salida/*.wav

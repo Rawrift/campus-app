@@ -93,7 +93,7 @@ export class Mezcla {
 
     this.espacios = {};
     this.retorno = ctx.createGain();
-    this.retorno.gain.value = 1;
+    this.retorno.gain.value = opciones.reverb ?? 1;
     this.retorno.connect(this.sumador);
 
     for (const nombre of Object.keys(ESPACIOS)) {

@@ -41,6 +41,19 @@ export const CASOS = [
     },
   },
 
+  {
+    id: 'diag_masa_005_seco', grupo: 'A · La masa cambia el timbre',
+    etiqueta: 'Diagnóstico · momento 5 sin reverberación ni limitador',
+    dur: 2.0, opcionesMotor: { limitador: false, reverb: 0, volumen: 0.5 },
+    correr(a) { a.escucha({ posicion: [0, 1.6, 0] }); a.impacto({ material: 'metal', materialB: 'hormigon', momento: 5, posicion: [0, 0, -3], cuando: 0.02 }); },
+  },
+  {
+    id: 'diag_masa_005_seco_sinhrtf', grupo: 'A · La masa cambia el timbre',
+    etiqueta: 'Diagnóstico · momento 5 sin reverberación, sin limitador, sin HRTF',
+    dur: 2.0, opcionesMotor: { limitador: false, reverb: 0, volumen: 0.5, hrtf: false },
+    correr(a) { a.escucha({ posicion: [0, 1.6, 0] }); a.impacto({ material: 'metal', materialB: 'hormigon', momento: 5, posicion: [0, 0, -3], cuando: 0.02 }); },
+  },
+
   // === 2. MATRIZ DE PARES DE MATERIALES =================================================
   ...[
     ['metal', 'hormigon', 'metal sobre hormigón · chirría y repica'],

@@ -1,0 +1,3 @@
+# Los WAV se regeneran con `node verificacion/render.mjs` (45 MB, no van al repositorio).
+# Los PNG, metricas.json y METRICAS.md SI se versionan: son la evidencia del componente.
+*.wav

@@ -50,7 +50,11 @@ export function generarImpulso(ctx, cfg) {
       const t = (i - iPre) / sr;
       const env = Math.exp(-alfa * t * desvio);
       // Densidad creciente: al principio solo 1 de cada k muestras lleva energia.
-      const madurez = Math.min(1, t / (0.035 + 0.05 / difusion));
+      // Una sala real alcanza densidad difusa en unas pocas decenas de milisegundos. Si
+      // esta rampa es larga, la reverberacion "hincha" despues del golpe y el conjunto
+      // pierde el ataque: el pico deja de estar en el impacto y pasa a estar 100 ms
+      // despues, que es exactamente lo contrario de transmitir masa.
+      const madurez = Math.min(1, t / Math.min(0.06, 0.010 + 0.015 / difusion));
       const disparo = prng() < (0.06 + 0.94 * madurez) * difusion ? 1 : 0;
       let v = (prng() * 2 - 1) * disparo * env;
 
@@ -111,18 +115,26 @@ export function generarImpulso(ctx, cfg) {
 function anthropicSpread(prng) { return prng() * 2 - 1; }
 
 /**
- * Normaliza por ENERGIA (no por pico). Asi dos salas con RT60 muy distintos suenan con
- * un nivel de envio comparable y el jugador no nota saltos de volumen al cambiar de sala.
+ * Normaliza por la NORMA L2 del impulso, que es la ganancia real de la convolucion.
+ *
+ * Normalizar por RMS es un error clasico y caro: el RMS divide por la longitud, asi que
+ * un impulso de 3.2 s con el mismo RMS que uno de 1.1 s tiene casi el doble de norma L2 y
+ * suena mucho mas fuerte. Con RMS = 0.02 sobre 1.1 s estereo la norma L2 sale 6.5, es
+ * decir +16 dB de ganancia de convolucion: la reverberacion tapaba el sonido directo y el
+ * pico del impacto se desplazaba 100 ms despues del golpe, destruyendo el ataque.
+ *
+ * Con norma L2 fija, dos salas de RT60 muy distinto entran al mismo nivel y el equilibrio
+ * seco/mojado queda donde debe estar: en la ganancia de envio de cada voz.
  */
 function normalizarEnergia(buf) {
-  let suma = 0, total = 0;
+  let suma = 0;
   for (let c = 0; c < buf.numberOfChannels; c++) {
     const d = buf.getChannelData(c);
-    for (let i = 0; i < d.length; i++) { suma += d[i] * d[i]; total++; }
+    for (let i = 0; i < d.length; i++) suma += d[i] * d[i];
   }
-  const rms = Math.sqrt(suma / Math.max(1, total));
-  if (rms < 1e-9) return;
-  const g = 0.055 / rms;
+  const l2 = Math.sqrt(suma);
+  if (l2 < 1e-9) return;
+  const g = 0.70 / l2;
   for (let c = 0; c < buf.numberOfChannels; c++) {
     const d = buf.getChannelData(c);
     for (let i = 0; i < d.length; i++) d[i] *= g;
