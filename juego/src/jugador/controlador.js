@@ -51,6 +51,9 @@ export class Jugador {
     const cd = RAPIER.ColliderDesc.capsule(MEDIA_ALTURA, RADIO);
     cd.setFriction(0.0);      // la fricción del jugador la gestionamos nosotros, no el solver
     this.colisionador = this.fisica.mundo.createCollider(cd, this.cuerpo);
+    // Los rayos de puntería salen de los ojos, que están dentro de esta cápsula: sin esto
+    // todo lo que el jugador apunta se lo apunta a sí mismo.
+    this.fisica.ignorar(this.colisionador);
 
     this.controlador = this.fisica.mundo.createCharacterController(0.02);
     this.controlador.setUp({ x: 0, y: 1, z: 0 });
@@ -166,10 +169,13 @@ export class Jugador {
 
   _fijarAltura(agachado) {
     this.agachado = agachado;
+    this.fisica.dejarDeIgnorar(this.colisionador);
     this.fisica.mundo.removeCollider(this.colisionador, false);
     const cd = RAPIER.ColliderDesc.capsule(agachado ? MEDIA_ALTURA_AGACHADO : MEDIA_ALTURA, RADIO);
     cd.setFriction(0.0);
     this.colisionador = this.fisica.mundo.createCollider(cd, this.cuerpo);
+    // Se recrea el colisionador, así que hay que volver a excluirlo de las consultas.
+    this.fisica.ignorar(this.colisionador);
   }
 
   /**

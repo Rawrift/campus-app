@@ -30,6 +30,40 @@ export function instalarApi(juego) {
       if (fov) { c.fov = fov; c.updateProjectionMatrix(); }
     }),
 
+    // --- equipo y acciones (contrato de API_AUTOMATIZACION.md) ---
+    seleccionarHerramienta: seguro((id) => {
+      const i = juego.ranuras.findIndex((r) => r.id === id);
+      if (i >= 0) juego.seleccionarRanura(i);
+      return i >= 0;
+    }),
+    modoHerramienta: seguro((modo) => juego.fijarModoHerramienta(modo)),
+    ranuraActual: seguro(() => juego.ranuras[juego.ranuraActiva].id),
+    // Camino de entrada del arnés: el juego ignora los clics sin puntero capturado, que es lo
+    // correcto jugando, pero deja la automatización sin forma de disparar.
+    primario: seguro((veces = 1) => {
+      const eq = juego.ranuras[juego.ranuraActiva].objeto;
+      for (let i = 0; i < veces; i++) {
+        if (eq === juego.manipulador) juego.manipulador.agarrar();
+        else eq.primario();
+      }
+    }),
+    secundario: seguro(() => {
+      const eq = juego.ranuras[juego.ranuraActiva].objeto;
+      if (eq === juego.manipulador) juego.manipulador.congelar();
+      else if (eq.secundario) eq.secundario();
+    }),
+    disparar: seguro((veces = 1) => {
+      const eq = juego.ranuras[juego.ranuraActiva].objeto;
+      if (!eq.primario || eq === juego.manipulador) return false;
+      for (let i = 0; i < veces; i++) { eq.tEspera = 0; eq.primario(); }
+      return true;
+    }),
+    agarrar: seguro((id) => {
+      if (id == null) return juego.manipulador.agarrar();
+      juego.manipulador.agarrado = id; return true;
+    }),
+    soltar: seguro((impulso = 0) => juego.manipulador.soltar({ lanzar: impulso })),
+    abrirMenu: seguro((nombre) => { nombre ? juego.menus.abrir(nombre) : juego.menus.cerrar(); }),
     generar: seguro((idProp, pos) => juego.generar(idProp, pos)),
     explotar: seguro((pos, potencia, radio) => fisica.explotar(pos, potencia ?? 9000, radio ?? 12).length),
     eliminar: seguro((id) => fisica.eliminar(id)),
@@ -41,7 +75,11 @@ export function instalarApi(juego) {
     semilla: seguro((n) => azar.reiniciar(n)),
 
     determinista: {
-      activar: seguro((semilla) => { azar.reiniciar(semilla ?? 1); bucle.activarDeterminista(); }),
+      activar: seguro((semilla) => {
+        azar.reiniciar(semilla ?? 1);
+        fisica.reiniciarDeterminismo();
+        bucle.activarDeterminista();
+      }),
       avanzar: seguro((n) => bucle.avanzar(n ?? 1)),
       renderizar: seguro(() => bucle.renderizar()),
       desactivar: seguro(() => bucle.desactivarDeterminista()),

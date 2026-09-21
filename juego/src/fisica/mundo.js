@@ -62,6 +62,13 @@ export class MundoFisico {
     // retira y se avisa, en vez de acumular cuerpos cayendo eternamente.
     this.limites = { yMinimo: -25, radio: 400 };
     this.pielContacto = 0.01;   // 1 cm: medido mejor que 0 y que 5 cm, que empeora mucho
+
+    // Colisionadores que NINGUNA consulta debe devolver. El caso que obliga a esto: los ojos
+    // del jugador están DENTRO de su propia cápsula (ojos a 1,70 m, cápsula de 0,02 a 1,76),
+    // así que todo rayo disparado desde la vista nace dentro de uno mismo y, con solid=true,
+    // Rapier lo resuelve como impacto a distancia cero contra el propio jugador. Resultado:
+    // el manipulador no agarra, la herramienta no suelda y las armas no disparan a nada.
+    this.ignorados = new Set();
   }
 
   /**
@@ -293,13 +300,35 @@ export class MundoFisico {
     return !!golpe;
   }
 
+  /**
+   * Pone a cero el estado propio que sobrevive entre escenarios y que rompería la
+   * reproducibilidad. El contador de revisión de CCD es el caso claro: al persistir, en la
+   * segunda ejecución el CCD se conmuta en pasos distintos que en la primera, y eso basta
+   * para que dos simulaciones con la misma semilla diverjan.
+   */
+  reiniciarDeterminismo() {
+    this._contadorCCD = 0;
+    this.fugados = 0;
+    this._consultasSucias = true;
+    for (const e of this.entidades.values()) {
+      if (e._ccd) { e.cuerpo.enableCcd(false); e._ccd = false; }
+    }
+  }
+
+  /** Marca un colisionador para que las consultas lo ignoren siempre (p. ej. el jugador). */
+  ignorar(colisionador) { if (colisionador) this.ignorados.add(colisionador.handle); }
+  dejarDeIgnorar(colisionador) { if (colisionador) this.ignorados.delete(colisionador.handle); }
+
   /** Raycast general. Devuelve { id, punto, normal, distancia } o null. */
   rayo(origen, direccion, alcance = 100, excluir = null) {
     this._asegurarConsultas();
     const r = new RAPIER.Ray({ x: origen[0], y: origen[1], z: origen[2] },
                              { x: direccion[0], y: direccion[1], z: direccion[2] });
     const g = this.mundo.castRayAndGetNormal(r, alcance, true, undefined, undefined, undefined, undefined,
-      (col) => (excluir == null ? true : this._porColisionador.get(col.handle) !== excluir));
+      (col) => {
+        if (this.ignorados.has(col.handle)) return false;
+        return excluir == null ? true : this._porColisionador.get(col.handle) !== excluir;
+      });
     if (!g) return null;
     const p = r.pointAt(g.timeOfImpact);
     return { id: this._porColisionador.get(g.collider.handle) ?? null,
