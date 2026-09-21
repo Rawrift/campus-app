@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { Azar } from '../nucleo/aleatorio.js';
 import { RELLENO } from '../fisica/materiales.js';
 import { uvMundo, uvPlano } from '../render/uv.js';
+import { romperTeselado } from '../render/macro.js';
 
 // Metros por tesela por defecto. Las recetas de material están pensadas para leerse bien a
 // esta escala: por encima, la variación de baja frecuencia se convierte en manchas.
@@ -62,6 +63,55 @@ export class Mapa {
     return m;
   }
 
+  /**
+   * Muro articulado. Un crítico independiente señaló que el paño liso de suelo a techo era el
+   * mayor delta del interior: "ninguna nave real tiene un paño de 20 m sin un solo accidente".
+   * Esto le da zócalo, pilastras que sobresalen del paño y un cambio de material en la franja
+   * alta, que es lo que rompe la lectura de "caja con una foto pegada".
+   *
+   * @param eje 'x' si el muro es perpendicular a X (corre a lo largo de Z), 'z' si al revés.
+   */
+  _muroArticulado({ centro, largo, altura, espesor, eje, mats, pilastras = true,
+                    franjaAlta = 0, idMat = 'hormigon' }) {
+    const ZOCALO = 1.05, SALIENTE_Z = 0.14, SALIENTE_P = 0.22, ANCHO_P = 0.8;
+    const alturaPaño = altura - (franjaAlta || 0);
+    const [cx, cy, cz] = centro;
+    const enX = eje === 'x';
+    const dim = (l, e) => enX ? [e, 0, l] : [l, 0, e];
+
+    // Paño principal
+    const d1 = dim(largo, espesor);
+    this._solido(g(enX ? espesor : largo, alturaPaño, enX ? largo : espesor),
+      mats.paño, [cx, cy + alturaPaño / 2, cz], 0, idMat);
+
+    // Franja alta de chapa nervada: cambio de material que corta la verticalidad.
+    if (franjaAlta > 0) {
+      this._solido(g(enX ? espesor * 0.85 : largo, franjaAlta, enX ? largo : espesor * 0.85),
+        mats.chapa, [cx, cy + alturaPaño + franjaAlta / 2, cz], 0, 'acero');
+      // Perfil de remate entre paño y chapa: sin él el cambio de material parece un error.
+      this._adorno(g(enX ? espesor + 0.14 : largo, 0.16, enX ? largo : espesor + 0.14),
+        mats.acero, [cx, cy + alturaPaño + 0.08, cz]);
+    }
+
+    // Zócalo: sobresale y va más sucio. Es el accidente que más se nota a ras de suelo.
+    this._solido(g(enX ? espesor + SALIENTE_Z * 2 : largo, ZOCALO, enX ? largo : espesor + SALIENTE_Z * 2),
+      mats.zocalo, [cx, cy + ZOCALO / 2, cz], 0, idMat);
+    this._adorno(g(enX ? espesor + SALIENTE_Z * 2 + 0.06 : largo, 0.07, enX ? largo : espesor + SALIENTE_Z * 2 + 0.06),
+      mats.zocalo, [cx, cy + ZOCALO, cz]);
+
+    // Pilastras cada ~4,3 m, sobresaliendo del paño.
+    if (pilastras) {
+      const n = Math.max(2, Math.round(largo / 4.3));
+      for (let i = 0; i <= n; i++) {
+        const t = -largo / 2 + (largo / n) * i;
+        const px = enX ? cx : cx + t;
+        const pz = enX ? cz + t : cz;
+        this._solido(g(enX ? espesor + SALIENTE_P * 2 : ANCHO_P, alturaPaño - 0.1, enX ? ANCHO_P : espesor + SALIENTE_P * 2),
+          mats.pilastra, [px, cy + (alturaPaño - 0.1) / 2, pz], 0, idMat, { sombra: true });
+      }
+    }
+  }
+
   async construir() {
     const bib = this.bib;
     const [asfalto, hormigon, hormigonViejo, pulido, chapa, metalPintado, oxido,
@@ -84,6 +134,17 @@ export class Mapa {
     ]);
     this.materiales = { asfalto, hormigon, hormigonViejo, pulido, chapa, metalPintado, oxido,
                         acero, madera, vidrio, grava, ladrillo, goma };
+
+    // Rotura del teselado en las superficies grandes, que son las que delatan el patrón.
+    // Los props pequeños no la necesitan: nunca se ven repetidos uno al lado de otro.
+    romperTeselado(hormigon,      { escala: 22, fuerza: 0.30, suciedadSuelo: 2.6 });
+    romperTeselado(hormigonViejo, { escala: 15, fuerza: 0.38, suciedadSuelo: 1.8 });
+    romperTeselado(pulido,        { escala: 17, fuerza: 0.26, suciedadSuelo: 0 });
+    romperTeselado(asfalto,       { escala: 34, fuerza: 0.32, suciedadSuelo: 0 });
+    romperTeselado(ladrillo,      { escala: 19, fuerza: 0.26, suciedadSuelo: 1.4 });
+    romperTeselado(chapa,         { escala: 13, fuerza: 0.22, suciedadSuelo: 0 });
+    romperTeselado(metalPintado,  { escala: 11, fuerza: 0.28, suciedadSuelo: 0 });
+    romperTeselado(oxido,         { escala:  9, fuerza: 0.34, suciedadSuelo: 0 });
 
     this._suelo(asfalto, grava);
     this._nave({ hormigon, hormigonViejo, pulido, chapa, acero, vidrio, metalPintado });
@@ -118,10 +179,15 @@ export class Mapa {
     const AN = 26, PR = 18, AL = 9, ESP = 0.45;   // ancho, profundidad, altura, espesor
     const x0 = 0, z0 = -6;
 
-    // Muros con espesor real. Un muro de plano infinitamente fino se nota al instante.
-    this._solido(g(ESP, AL, PR), mat.hormigon, [x0 - AN/2, AL/2, z0], 0, 'hormigon');
-    this._solido(g(ESP, AL, PR), mat.hormigon, [x0 + AN/2, AL/2, z0], 0, 'hormigon');
-    this._solido(g(AN, AL, ESP), mat.hormigonViejo, [x0, AL/2, z0 - PR/2], 0, 'hormigon');
+    // Muros articulados: paño + zócalo + pilastras + franja alta de chapa.
+    const mats = { paño: mat.hormigon, zocalo: mat.hormigonViejo, pilastra: mat.hormigon,
+                   chapa: mat.chapa, acero: mat.acero };
+    this._muroArticulado({ centro: [x0 - AN/2, 0, z0], largo: PR, altura: AL, espesor: ESP,
+                           eje: 'x', mats, franjaAlta: 2.4 });
+    this._muroArticulado({ centro: [x0 + AN/2, 0, z0], largo: PR, altura: AL, espesor: ESP,
+                           eje: 'x', mats, franjaAlta: 2.4 });
+    this._muroArticulado({ centro: [x0, 0, z0 - PR/2], largo: AN, altura: AL, espesor: ESP,
+                           eje: 'z', mats, franjaAlta: 2.4 });
 
     // Fachada frontal con portón abierto de 11 x 6.
     const anchoJamba = (AN - 11) / 2;
