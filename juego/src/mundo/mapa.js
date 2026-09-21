@@ -8,8 +8,13 @@
 import * as THREE from 'three';
 import { Azar } from '../nucleo/aleatorio.js';
 import { RELLENO } from '../fisica/materiales.js';
+import { uvMundo, uvPlano } from '../render/uv.js';
 
-const g = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+// Metros por tesela por defecto. Las recetas de material están pensadas para leerse bien a
+// esta escala: por encima, la variación de baja frecuencia se convierte en manchas.
+const TESELA = 2.0;
+const g = (w, h, d, tesela = TESELA) => uvMundo(new THREE.BoxGeometry(w, h, d), tesela);
+const plano = (w, h, tesela = TESELA) => uvPlano(new THREE.PlaneGeometry(w, h), tesela);
 
 export class Mapa {
   constructor(escena, fisica, biblioteca) {
@@ -61,19 +66,21 @@ export class Mapa {
     const bib = this.bib;
     const [asfalto, hormigon, hormigonViejo, pulido, chapa, metalPintado, oxido,
            acero, madera, vidrio, grava, ladrillo, goma] = await Promise.all([
-      bib.obtener('asfalto',       { repeticion: [40, 40], semilla: 3 }),
-      bib.obtener('hormigon',      { repeticion: [6, 3],   semilla: 5 }),
-      bib.obtener('hormigonViejo', { repeticion: [8, 4],   semilla: 11 }),
-      bib.obtener('hormigonLiso',  { repeticion: [12, 12], semilla: 7 }),
-      bib.obtener('chapa',         { repeticion: [6, 2],   semilla: 13 }),
-      bib.obtener('metalPintado',  { repeticion: [3, 3],   semilla: 17 }),
-      bib.obtener('oxido',         { repeticion: [2, 2],   semilla: 19 }),
-      bib.obtener('acero',         { repeticion: [2, 1],   semilla: 23 }),
-      bib.obtener('madera',        { repeticion: [2, 2],   semilla: 29 }),
-      bib.obtener('vidrio',        { repeticion: [1, 1],   semilla: 31, transparente: true }),
-      bib.obtener('grava',         { repeticion: [14, 14], semilla: 37 }),
-      bib.obtener('ladrillo',      { repeticion: [8, 4],   semilla: 41 }),
-      bib.obtener('goma',          { repeticion: [1, 1],   semilla: 43 }),
+      // repeticion [1,1] en todos: la densidad de textura la fija ahora la geometría, en
+      // metros por tesela, no el material. Así una sola textura sirve a todo el mapa.
+      bib.obtener('asfalto',       { repeticion: [1, 1], semilla: 3 }),
+      bib.obtener('hormigon',      { repeticion: [1, 1], semilla: 5 }),
+      bib.obtener('hormigonViejo', { repeticion: [1, 1], semilla: 11 }),
+      bib.obtener('hormigonLiso',  { repeticion: [1, 1], semilla: 7 }),
+      bib.obtener('chapa',         { repeticion: [1, 1], semilla: 13 }),
+      bib.obtener('metalPintado',  { repeticion: [1, 1], semilla: 17 }),
+      bib.obtener('oxido',         { repeticion: [1, 1], semilla: 19 }),
+      bib.obtener('acero',         { repeticion: [1, 1], semilla: 23 }),
+      bib.obtener('madera',        { repeticion: [1, 1], semilla: 29 }),
+      bib.obtener('vidrio',        { repeticion: [1, 1], semilla: 31, transparente: true }),
+      bib.obtener('grava',         { repeticion: [1, 1], semilla: 37 }),
+      bib.obtener('ladrillo',      { repeticion: [1, 1], semilla: 41 }),
+      bib.obtener('goma',          { repeticion: [1, 1], semilla: 43 }),
     ]);
     this.materiales = { asfalto, hormigon, hormigonViejo, pulido, chapa, metalPintado, oxido,
                         acero, madera, vidrio, grava, ladrillo, goma };
@@ -89,14 +96,14 @@ export class Mapa {
   // --- suelo ---------------------------------------------------------------------------
   _suelo(asfalto, grava) {
     // Base sólida y gruesa: el suelo es lo que sostiene todo el caos.
-    this._solido(g(320, 4, 320), asfalto, [0, -2, 0], 0, 'hormigon', { sombra: false });
+    this._solido(g(320, 4, 320, 3.0), asfalto, [0, -2, 0], 0, 'hormigon', { sombra: false });
 
     // Parches de grava y zonas desgastadas rompen la uniformidad del asfalto, que es lo que
     // delata un suelo procedural repetido.
     const a = this.azar.derivar(1);
     for (let i = 0; i < 9; i++) {
       const w = a.entre(9, 26), d = a.entre(9, 26);
-      const geo = new THREE.PlaneGeometry(w, d);
+      const geo = plano(w, d, 2.4);
       const m = new THREE.Mesh(geo, i % 2 ? grava : this.materiales?.hormigonViejo ?? grava);
       m.rotation.x = -Math.PI / 2;
       m.position.set(a.simetrico(90), 0.012 + i * 0.001, a.simetrico(90));
@@ -123,7 +130,7 @@ export class Mapa {
     this._solido(g(11, AL - 6, ESP), mat.hormigon, [x0, 6 + (AL-6)/2, z0 + PR/2], 0, 'hormigon');
 
     // Suelo interior pulido, ligeramente reflectante: separa el dentro del fuera.
-    const suelo = new THREE.Mesh(new THREE.PlaneGeometry(AN - ESP, PR - ESP), mat.pulido);
+    const suelo = new THREE.Mesh(plano(AN - ESP, PR - ESP, 2.6), mat.pulido);
     suelo.rotation.x = -Math.PI/2; suelo.position.set(x0, 0.02, z0);
     suelo.receiveShadow = true; this.raiz.add(suelo); this.mallas.push(suelo);
 
