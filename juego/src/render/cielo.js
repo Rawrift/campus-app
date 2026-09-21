@@ -109,10 +109,21 @@ export class Cielo {
     return this.objetivoEntorno.texture;
   }
 
-  /** Hora del día 0..24. Recoloca el sol y recalcula la paleta. Rehornea el entorno. */
+  /**
+   * Hora del día 0..24. Recoloca el sol y recalcula la paleta. Rehornea el entorno.
+   *
+   * CUIDADO con la hora que se elige: por debajo de cierta altura el sol deja de producir
+   * sombras útiles y la escena queda iluminada solo por el relleno, que es plano y no ocluye
+   * nada. Ocurrió: el juego estaba puesto a las 18:24 con amanecer a las 6 y ocaso a las 18,
+   * o sea con el sol BAJO EL HORIZONTE, y un crítico lo detectó como "la luz no está ocluida,
+   * las cajas no proyectan sombra". No era un problema de sesgo de sombra: no había sol.
+   * `alturaSolar` queda expuesta para que el juego pueda comprobarlo.
+   */
   fijarHora(hora) {
     const t = ((hora - 6) / 12) * Math.PI;      // 6h amanece, 18h anochece
     const alt = Math.sin(t), az = Math.cos(t);
+    this.alturaSolar = alt;
+    this.hora = hora;
     this.uniformes.uSol.value.set(az * 0.85, Math.max(-0.2, alt), -0.5).normalize();
 
     // Al ras del horizonte el sol enrojece y pierde fuerza: es lo que da el atardecer.

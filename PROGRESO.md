@@ -208,3 +208,44 @@ desaparecen al integrar; 2 y 3 se reevalúan en situ.
 **Dato de rendimiento, honesto:** el despacho JS de las 24 familias es ~240 ms, pero el ciclo
 completo en este contenedor tarda ~25 s porque rasteriza por CPU con SwiftShader. El objetivo
 de "<4 s a 1024" es un objetivo de GPU y **aquí no es medible**: no se da por cumplido.
+
+---
+
+## Bucle de crítica sobre el interior de la nave
+
+Método: construir → ejecutar el juego → capturar → **juicio ciego por un crítico con contexto
+limpio, que no sabe qué versión es cuál ni qué se cambió** → corregir el mayor delta → repetir.
+Las claves de cada A/B están en `gauntlet/_claves/`, fuera del alcance del crítico.
+
+| # | Cambio | Elegida a ciegas | Nota | Mayor delta detectado |
+|---|---|---|---|---|
+| 1 | Densidad de textura en espacio de mundo | la nueva | 3,5/10 | "El muro es una foto repetida, no arquitectura" |
+| 2 | Muros articulados + rotura del teselado | la nueva | 4/10 | "La luz no está ocluida; las cajas parecen calcomanías" |
+| 3 | Oclusión ambiental (GTAO) + gradación | _pendiente_ | — | — |
+
+### Iteración 1 — el hormigón parecía camuflaje
+Causa raíz: no era la receta del material sino la escala. Una `BoxGeometry` da UV de 0..1 en
+cada cara mida 0,4 m o 26 m, así que el mismo hormigón salía 65 veces más estirado en un muro
+que en una caja, y su variación de baja frecuencia se convertía en manchones.
+Corrección: UV reescritos según las dimensiones reales, en metros por tesela.
+
+### Iteración 2 — el muro era una foto repetida
+El crítico: _"la misma placa se repite en cuadrícula, las mismas manchas en la misma posición;
+el ojo detecta el patrón en medio segundo"_, y añadió que el relieve sube más que cualquier
+retoque de luz. Corrección: variación macro ligada a la posición en el mundo (dos teselas
+contiguas dejan de ser idénticas aunque compartan textura) + muros articulados con zócalo
+saliente, pilastras cada 4,3 m y franja alta de chapa nervada.
+
+### Iteración 3 — la luz no estaba ocluida
+El crítico: _"la zona bajo el altillo brilla casi igual que el suelo abierto; ninguna pila de
+cajas tiene contacto oscuro en su base, parecen calcomanías apoyadas"_.
+
+Investigándolo apareció **un fallo mayor que el señalado**: el juego estaba fijado a las 18:24
+con ocaso a las 18:00, es decir **con el sol por debajo del horizonte**. No había luz
+direccional en absoluto; la escena se sostenía solo con el relleno hemisférico. Corregido a
+las 17:06 y añadido un aviso si la altura solar baja de 0,12.
+
+Pero el diagnóstico del crítico seguía siendo correcto por otra razón: el tejado es opaco, así
+que el interior **no recibe sol aunque lo haya**, y queda bañado por ambiental uniforme que
+llega igual al rincón que al centro. La solución correcta no era más sombras sino **oclusión
+ambiental**: GTAO más un pase de gradación con curva S, viñeta y grano.

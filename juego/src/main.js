@@ -56,7 +56,13 @@ class Juego {
     this.fisica = new MundoFisico();
     this.bib = new BibliotecaMateriales(this.render);
     this.cielo = new Cielo(this.render.renderizador, this.render.escena);
-    this.cielo.fijarHora(18.4);                       // atardecer
+    // 17:06. Sol bajo y cálido, sombras largas: la hora en la que un polígono industrial se
+    // ve mejor. NO subir por encima de 17,6: a partir de ahí el sol se acerca al horizonte,
+    // deja de proyectar sombras útiles y la escena se aplana.
+    this.cielo.fijarHora(17.1);
+    if (this.cielo.alturaSolar < 0.12) {
+      console.warn('[fragua] sol demasiado bajo, la escena quedará sin sombras útiles');
+    }
     // El color del sol se toma del cielo para que luz y fondo concuerden, pero NORMALIZADO:
     // el uniforme del cielo lleva un multiplicador de brillo para el disco solar que, usado
     // como color de luz, saturaba y quemaba la escena.

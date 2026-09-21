@@ -10,12 +10,13 @@
 
 import * as THREE from 'three';
 import { PresupuestoLuces } from './luces.js';
+import { Postproceso } from './postproceso.js';
 
 export const CALIDADES = {
-  bajo:  { escala: 0.6, sombras: 1024, luces: 3, sombrasPunto: 0, anisotropia: 1, niebla: 1.0 },
-  medio: { escala: 0.8, sombras: 2048, luces: 5, sombrasPunto: 1, anisotropia: 4, niebla: 1.0 },
-  alto:  { escala: 1.0, sombras: 3072, luces: 6, sombrasPunto: 1, anisotropia: 8, niebla: 1.0 },
-  ultra: { escala: 1.0, sombras: 4096, luces: 8, sombrasPunto: 2, anisotropia: 16, niebla: 1.0 },
+  bajo:  { escala: 0.6, sombras: 1024, luces: 3, sombrasPunto: 0, anisotropia: 1, radioSombra: 20, post: 'ninguno' },
+  medio: { escala: 0.8, sombras: 2048, luces: 5, sombrasPunto: 1, anisotropia: 4, radioSombra: 24, post: 'ao' },
+  alto:  { escala: 1.0, sombras: 3072, luces: 6, sombrasPunto: 1, anisotropia: 8, radioSombra: 26, post: 'completo' },
+  ultra: { escala: 1.0, sombras: 4096, luces: 8, sombrasPunto: 2, anisotropia: 16, radioSombra: 30, post: 'completo' },
 };
 
 export class Renderizador {
@@ -63,25 +64,45 @@ export class Renderizador {
 
     this._tam = { ancho: 0, alto: 0 };
     this.redimensionar();
+
+    this.post = new Postproceso(this.renderizador, this.escena, this.camara, {
+      nivel: this.ajustes.post, ancho: this._tam.ancho, alto: this._tam.alto,
+    });
   }
 
   _configurarSombraSol() {
     const s = this.sol.shadow;
     s.mapSize.set(this.ajustes.sombras, this.ajustes.sombras);
     const c = s.camera;
-    // Volumen de sombra ajustado a la zona jugable: cuanto más ceñido, más resolución útil.
-    c.left = -70; c.right = 70; c.top = 70; c.bottom = -70;
-    c.near = 1; c.far = 260;
+    // Volumen CEÑIDO alrededor del jugador, no del mapa entero.
+    //
+    // Antes cubría +-70 m: con un mapa de 3072 eso son 4,6 cm por téxel, y a esa resolución
+    // la sombra no llega al punto de contacto. Un crítico independiente lo describió como
+    // "nada está posado, las cajas flotan". A +-26 m el téxel baja a 1,7 cm y el contacto
+    // aparece. Lo que queda fuera del volumen no proyecta, pero a esa distancia no se nota.
+    const R = this.ajustes.radioSombra;
+    c.left = -R; c.right = R; c.top = R; c.bottom = -R;
+    c.near = 1; c.far = 300;
     c.updateProjectionMatrix();
-    s.bias = -0.0012;
-    s.normalBias = 0.035;
+    // El sesgo debe ser lo menor posible que no produzca acné: un sesgo alto es exactamente
+    // lo que despega la sombra del objeto y lo hace flotar.
+    s.bias = -0.00035;
+    s.normalBias = 0.012;
   }
 
-  /** Coloca el sol respecto al jugador para que el volumen de sombra lo siga. */
+  /**
+   * Coloca el sol respecto al observador para que el volumen de sombra, ahora ceñido, lo siga.
+   * Se ancla a una rejilla del tamaño de un téxel de sombra: si el volumen se desplaza de
+   * forma continua, los bordes de sombra hierven al moverse la cámara.
+   */
   orientarSol(direccion, centro) {
     const d = direccion;
-    this.sol.position.set(centro.x + d.x * 120, centro.y + d.y * 120 + 40, centro.z + d.z * 120);
-    this.sol.target.position.set(centro.x, centro.y, centro.z);
+    const R = this.ajustes.radioSombra;
+    const texel = (R * 2) / this.ajustes.sombras;
+    const cx = Math.round(centro.x / texel) * texel;
+    const cz = Math.round(centro.z / texel) * texel;
+    this.sol.position.set(cx + d.x * 140, d.y * 140 + 60, cz + d.z * 140);
+    this.sol.target.position.set(cx, 0, cz);
     this.sol.target.updateMatrixWorld();
   }
 
@@ -117,6 +138,7 @@ export class Renderizador {
     this.renderizador.setSize(ancho, alto, false);
     this.camara.aspect = ancho / alto;
     this.camara.updateProjectionMatrix();
+    this.post?.redimensionar(ancho * dpr, alto * dpr);
   }
 
   fijarCalidad(nombre) {
@@ -132,7 +154,8 @@ export class Renderizador {
   dibujar() {
     this.presupuestoLuces.resolver(this.camara.position);
     this.renderizador.info.reset();
-    this.renderizador.render(this.escena, this.camara);
+    if (this.post?.activo) this.post.dibujar();
+    else this.renderizador.render(this.escena, this.camara);
   }
 
   estadisticas() {

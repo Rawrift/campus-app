@@ -139,7 +139,7 @@ export class Mapa {
     // Los props pequeños no la necesitan: nunca se ven repetidos uno al lado de otro.
     romperTeselado(hormigon,      { escala: 22, fuerza: 0.30, suciedadSuelo: 2.6 });
     romperTeselado(hormigonViejo, { escala: 15, fuerza: 0.38, suciedadSuelo: 1.8 });
-    romperTeselado(pulido,        { escala: 17, fuerza: 0.26, suciedadSuelo: 0 });
+    romperTeselado(pulido,        { escala: 11, fuerza: 0.42, suciedadSuelo: 0, rugosidadExtra: 0.30 });
     romperTeselado(asfalto,       { escala: 34, fuerza: 0.32, suciedadSuelo: 0 });
     romperTeselado(ladrillo,      { escala: 19, fuerza: 0.26, suciedadSuelo: 1.4 });
     romperTeselado(chapa,         { escala: 13, fuerza: 0.22, suciedadSuelo: 0 });
