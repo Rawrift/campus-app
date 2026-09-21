@@ -237,18 +237,45 @@ class Juego {
       if (teclas[ev.code]) e[teclas[ev.code]] = false;
       if (ev.code === 'KeyE') this.manipulador.rotando = false;
     });
-    this.lienzo.addEventListener('click', () => { if (!document.pointerLockElement) this.lienzo.requestPointerLock(); });
+    // Mirada: bloqueo de puntero si el navegador lo permite, y si no, arrastre.
+    // Dentro de un iframe el bloqueo de puntero puede estar denegado, y sin alternativa el
+    // juego quedaría injugable ahí. Con el arrastre funciona en cualquier contexto.
+    this.arrastrando = false;
+    this.bloqueoDisponible = true;
+    this.lienzo.addEventListener('click', () => {
+      if (document.pointerLockElement || !this.bloqueoDisponible) return;
+      const r = this.lienzo.requestPointerLock?.();
+      if (r && typeof r.catch === 'function') {
+        r.catch(() => { this.bloqueoDisponible = false; this.hud.avisar('Arrastra con el ratón para mirar'); });
+      }
+    });
+    addEventListener('pointerlockerror', () => {
+      this.bloqueoDisponible = false;
+      this.hud.avisar('Arrastra con el ratón para mirar');
+    });
+
+    const mirarCon = (dx, dy) => {
+      if (this.manipulador.rotando && this.manipulador.agarrado != null) this.manipulador.rotar(dx, dy);
+      else this.jugador.mirar(dx, dy);
+    };
     addEventListener('mousemove', ev => {
-      if (!document.pointerLockElement) return;
-      if (this.manipulador.rotando && this.manipulador.agarrado != null) this.manipulador.rotar(ev.movementX, ev.movementY);
-      else this.jugador.mirar(ev.movementX, ev.movementY);
+      if (document.pointerLockElement) mirarCon(ev.movementX, ev.movementY);
+      else if (this.arrastrando) mirarCon(ev.movementX, ev.movementY);
     });
     addEventListener('mousedown', ev => {
-      if (!document.pointerLockElement) return;
-      if (ev.button === 0) { if (!this.manipulador.agarrar()) this.hud.avisar('Nada que agarrar'); }
-      if (ev.button === 2) this.manipulador.congelar();
+      const activo = document.pointerLockElement || !this.bloqueoDisponible;
+      if (ev.button === 0) {
+        if (!activo) return;
+        this.arrastrando = !document.pointerLockElement;
+        if (!this.manipulador.agarrar()) this.hud.avisar('Nada que agarrar');
+      }
+      if (ev.button === 2 && activo) this.manipulador.congelar();
     });
-    addEventListener('mouseup', ev => { if (ev.button === 0) this.manipulador.soltar({ lanzar: 0.9 }); });
+    addEventListener('mouseup', ev => {
+      if (ev.button !== 0) return;
+      this.arrastrando = false;
+      this.manipulador.soltar({ lanzar: 0.9 });
+    });
     addEventListener('wheel', ev => { this.manipulador.acercar(-Math.sign(ev.deltaY) * 0.55); }, { passive: true });
     addEventListener('contextmenu', ev => ev.preventDefault());
     addEventListener('resize', () => this.render.redimensionar());

@@ -26,3 +26,7 @@ npm-debug.log*
 # audio: los WAV de verificación son regenerables (41 MB). Se versionan los PNG de
 # espectrograma y metricas.json, que son la evidencia que se puede inspeccionar.
 paquetes/audio/verificacion/salida/*.wav
+
+# build del juego: 3,6 MB por compilación, y cada rebuild añadiría otra copia al historial.
+# Se regenera con `cd juego && npm install && npm run build`.
+juego/dist/
