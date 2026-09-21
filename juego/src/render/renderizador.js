@@ -14,10 +14,15 @@ import { Postproceso } from './postproceso.js';
 
 export const CALIDADES = {
   bajo:  { escala: 0.6, sombras: 1024, luces: 3, sombrasPunto: 0, anisotropia: 1, radioSombra: 20, post: 'ninguno' },
-  medio: { escala: 0.8, sombras: 2048, luces: 5, sombrasPunto: 1, anisotropia: 4, radioSombra: 24, post: 'ao' },
-  alto:  { escala: 1.0, sombras: 3072, luces: 6, sombrasPunto: 1, anisotropia: 8, radioSombra: 26, post: 'completo' },
+  medio: { escala: 0.8, sombras: 2048, luces: 4, sombrasPunto: 0, anisotropia: 4, radioSombra: 24, post: 'ao' },
+  alto:  { escala: 1.0, sombras: 2048, luces: 6, sombrasPunto: 1, anisotropia: 8, radioSombra: 26, post: 'completo' },
   ultra: { escala: 1.0, sombras: 4096, luces: 8, sombrasPunto: 2, anisotropia: 16, radioSombra: 30, post: 'completo' },
 };
+
+// Tope de densidad de píxeles. En una pantalla HiDPI, devicePixelRatio 2 significa CUATRO
+// veces los píxeles a sombrear, y este juego está limitado por relleno, no por geometría.
+// Por encima de 1.5 la ganancia visual es marginal y el coste se dispara.
+const DPR_MAXIMO = 1.5;
 
 export class Renderizador {
   constructor(lienzo, { calidad = 'alto' } = {}) {
@@ -63,6 +68,13 @@ export class Renderizador {
     });
 
     this._tam = { ancho: 0, alto: 0 };
+    // Escalado adaptativo: se ajusta solo según el rendimiento REAL de la máquina del jugador.
+    // Es la palanca más honesta que existe: baja el coste de relleno sin tocar la dirección
+    // artística, y evita tener que adivinar la potencia del equipo de antemano.
+    this.escalaAdaptativa = 1;
+    this.adaptativo = true;
+    this._historial = [];
+    this._ultimoAjuste = 0;
     this.redimensionar();
 
     this.post = new Postproceso(this.renderizador, this.escena, this.camara, {
@@ -133,7 +145,7 @@ export class Renderizador {
     this._tam = { ancho, alto };
     // El escalado de resolución es la palanca de rendimiento más honesta: baja el coste de
     // relleno sin tocar la dirección artística.
-    const dpr = Math.min(window.devicePixelRatio || 1, 2) * this.ajustes.escala;
+    const dpr = Math.min(window.devicePixelRatio || 1, DPR_MAXIMO) * this.ajustes.escala * this.escalaAdaptativa;
     this.renderizador.setPixelRatio(dpr);
     this.renderizador.setSize(ancho, alto, false);
     this.camara.aspect = ancho / alto;
@@ -158,12 +170,44 @@ export class Renderizador {
     else this.renderizador.render(this.escena, this.camara);
   }
 
+  /**
+   * Ajusta la resolución interna buscando los 60 fps. Sube y baja con histéresis y espera
+   * entre ajustes, para que no oscile ante un pico puntual.
+   * @param msFotograma tiempo real del último fotograma
+   */
+  adaptar(msFotograma) {
+    if (!this.adaptativo) return;
+    const h = this._historial;
+    h.push(msFotograma);
+    if (h.length < 45) return;
+    if (h.length > 45) h.shift();
+    const ahora = performance.now();
+    if (ahora - this._ultimoAjuste < 1200) return;
+
+    const orden = h.slice().sort((a, b) => a - b);
+    const mediana = orden[Math.floor(orden.length / 2)];
+    const antes = this.escalaAdaptativa;
+
+    if (mediana > 22 && this.escalaAdaptativa > 0.5) {
+      this.escalaAdaptativa = Math.max(0.5, this.escalaAdaptativa - 0.12);
+    } else if (mediana < 12 && this.escalaAdaptativa < 1) {
+      this.escalaAdaptativa = Math.min(1, this.escalaAdaptativa + 0.08);
+    }
+    if (this.escalaAdaptativa !== antes) {
+      this._ultimoAjuste = ahora;
+      this._tam = { ancho: 0, alto: 0 };
+      this.redimensionar();
+      h.length = 0;
+    }
+  }
+
   estadisticas() {
     const i = this.renderizador.info;
     return {
       drawCalls: i.render.calls, triangulos: i.render.triangles,
       programas: i.programs?.length ?? 0, texturas: i.memory.textures,
-      geometrias: i.memory.geometries, ...this.presupuestoLuces.estadisticas(),
+      geometrias: i.memory.geometries, escalaAdaptativa: this.escalaAdaptativa,
+      ...this.presupuestoLuces.estadisticas(),
     };
   }
 }

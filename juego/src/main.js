@@ -12,6 +12,8 @@ import { Jugador } from './jugador/controlador.js';
 import { Manipulador } from './jugador/manipulador.js';
 import { Hud } from './interfaz/hud.js';
 import { instalarApi, Medidor } from './automatizacion/api.js';
+import { consolidarEstaticos } from './render/consolidar.js';
+import { GestorInstancias } from './render/instancias.js';
 
 const PROPS = {
   caja_madera:  { forma:{clase:'caja', medias:[0.4,0.4,0.4]},               material:'madera',   relleno:RELLENO.cajaTablas, nombre:'Caja de madera' },
@@ -46,7 +48,7 @@ class Juego {
     this.medidor = new Medidor();
     this.camaraLibre = false;
     this.azar = azar;
-    this.vinculos = new Map();     // id de entidad -> malla
+    this.instancias = null;        // se crea al iniciar, cuando ya hay escena
     this._resolverListo = null;
     this.listo = new Promise(r => { this._resolverListo = r; });
   }
@@ -73,6 +75,13 @@ class Juego {
 
     this.mapa = new Mapa(this.render.escena, this.fisica, this.bib);
     await this.mapa.construir();
+
+    // Fusión de la geometría estática. Sin esto el mundo son cientos de mallas sueltas y el
+    // navegador se ahoga en llamadas de dibujo antes de tocar un solo triángulo.
+    const fus = consolidarEstaticos(this.mapa.raiz);
+    console.info(`[fragua] geometría estática: ${fus.antes} mallas -> ${fus.creadas} fusionadas en ${fus.regiones} grupos`);
+
+    this.instancias = new GestorInstancias(this.render.escena);
 
     this.jugador = new Jugador(this.fisica, this.render.camara);
     this.jugador.teletransportar([0, 2, 22], Math.PI, -0.05);
@@ -103,11 +112,10 @@ class Juego {
     const forma = ent.meta.forma || this._formaDe(ent);
     const geo = geometriaDe(forma);
     const mat = this._materialDe(ent.material);
-    const m = new THREE.Mesh(geo, mat);
-    m.castShadow = true; m.receiveShadow = true;
-    this.render.escena.add(m);
-    this.vinculos.set(ent.id, m);
-    return m;
+    // Todos los props con la misma forma y material comparten una sola llamada de dibujo.
+    const clave = JSON.stringify(forma) + '|' + mat.uuid;
+    this.instancias.alta(ent.id, clave, geo, mat);
+    return null;
   }
   _formaDe(ent) {
     // Reconstruye la forma a partir del colisionador para poder dibujarlo.
@@ -144,8 +152,7 @@ class Juego {
 
   async escenario(nombre) {
     this.fisica.limpiar({ conservarProtegidos: true });
-    for (const [id, m] of this.vinculos) { this.render.escena.remove(m); }
-    this.vinculos.clear();
+    this.instancias.vaciar();
     const a = azar.derivar(99);
     if (nombre === 'torre') {
       for (let i = 0; i < 120; i++) {
@@ -177,17 +184,20 @@ class Juego {
   }
 
   sincronizar() {
-    for (const [id, malla] of this.vinculos) {
+    if (!this.instancias) return;
+    for (const id of [...this.instancias.deEntidad.keys()]) {
       const e = this.fisica.entidades.get(id);
-      if (!e) { this.render.escena.remove(malla); this.vinculos.delete(id); continue; }
-      const t = e.cuerpo.translation(), r = e.cuerpo.rotation();
-      malla.position.set(t.x, t.y, t.z);
-      malla.quaternion.set(r.x, r.y, r.z, r.w);
+      if (!e) { this.instancias.baja(id); continue; }
+      this.instancias.fijar(id, e.cuerpo.translation(), e.cuerpo.rotation());
     }
+    this.instancias.confirmar();
   }
 
   dibujar() {
-    this.medidor.marcar(performance.now());
+    const t = performance.now();
+    if (this._tAnterior) this.render.adaptar(t - this._tAnterior);
+    this._tAnterior = t;
+    this.medidor.marcar(t);
     this.sincronizar();
     this.mapa.pedirLuces(this.render.presupuestoLuces);
     this.render.orientarSol(this.cielo.direccionSol, this.render.camara.position);

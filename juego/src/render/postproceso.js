@@ -61,9 +61,11 @@ export class Postproceso {
     // Radio en metros: el contacto que interesa es el de una caja con el suelo y el de una
     // esquina de nave, no la oclusión de todo el edificio.
     this.gtao.output = GTAOPass.OUTPUT.Default;
+    // 8 muestras en vez de 12: la diferencia perceptual es mínima y el pase de AO es uno de
+    // los más caros del fotograma.
     this.gtao.updateGtaoMaterial({
       radius: 0.85, distanceExponent: 1.4, thickness: 1.0,
-      scale: 1.35, samples: 12, screenSpaceRadius: false,
+      scale: 1.3, samples: 8, screenSpaceRadius: false,
     });
     this.gtao.blendIntensity = 1.0;
     this.composer.addPass(this.gtao);

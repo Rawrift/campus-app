@@ -68,20 +68,29 @@ export class Cielo {
       uSuelo:     { value: new THREE.Color(0.045, 0.040, 0.038) },
       uTurbidez:  { value: 1.6 },
     };
+    // El cielo NO es geometría en la escena. Lo fue, y causó dos fallos graves:
+    //   1. Como caja de 2x2x2 fija en el origen, al alejarse la cámara quedaba fuera y su cara
+    //      interior dejaba de dibujarse: cielo negro en todo el mapa.
+    //   2. Ya corregido eso y pegada a la cámara, el pase de oclusión ambiental la veía en su
+    //      prepase de profundidad, donde el material sustituido ignora el truco de
+    //      gl_Position.xyww. GTAO la interpretaba como geometría a un palmo de la lente y
+    //      oscurecía la pantalla entera.
+    // Se hornea a un mapa cúbico que se usa como FONDO de escena. Sin geometría no hay nada
+    // que engañe a ningún pase, y encima se ahorra una llamada de dibujo.
     const geo = new THREE.BoxGeometry(2, 2, 2);
-    const mat = new THREE.ShaderMaterial({
+    this.materialCielo = new THREE.ShaderMaterial({
       vertexShader: VERTEX, fragmentShader: FRAGMENT, uniforms: this.uniformes,
-      side: THREE.BackSide, depthWrite: false, depthTest: true, toneMapped: false,
+      side: THREE.BackSide, depthWrite: false, depthTest: false, toneMapped: false,
     });
-    this.malla = new THREE.Mesh(geo, mat);
-    this.malla.frustumCulled = false;
-    this.malla.renderOrder = -1000;
-    // Se recoloca sobre la cámara justo antes de dibujar, para que ésta esté siempre dentro.
-    this.malla.onBeforeRender = (_r, _e, camara) => { this.malla.position.copy(camara.position); };
-    escena.add(this.malla);
+    this.mallaHorno = new THREE.Mesh(geo, this.materialCielo);
+    this.mallaHorno.frustumCulled = false;
+    this.escenaHorno = new THREE.Scene();
+    this.escenaHorno.add(this.mallaHorno);
+
+    this.objetivoCubo = new THREE.WebGLCubeRenderTarget(512, { type: THREE.HalfFloatType });
+    this.camaraCubo = new THREE.CubeCamera(0.05, 10, this.objetivoCubo);
 
     this.pmrem = new THREE.PMREMGenerator(renderizador);
-    this.pmrem.compileEquirectangularShader();
     this.objetivoEntorno = null;
   }
 
@@ -92,20 +101,17 @@ export class Cielo {
    * Hornea el cielo a un mapa de entorno para iluminación indirecta y reflejos.
    * Se hace una vez al cargar, y sólo se rehace si cambia la hora del día: es caro.
    */
+  /**
+   * Hornea el cielo a un mapa cúbico y lo usa como fondo de escena, y deriva de él el entorno
+   * para iluminación indirecta y reflejos. Es caro: sólo al cargar o al cambiar la hora.
+   */
   hornear() {
-    const escenaCielo = new THREE.Scene();
-    const copia = this.malla.clone();
-    copia.onBeforeRender = () => {};
-    copia.position.set(0, 0, 0);
-    copia.material = this.malla.material.clone();
-    copia.material.uniforms = this.uniformes;   // comparte uniformes, no los duplica
-    copia.material.side = THREE.BackSide;
-    escenaCielo.add(copia);
+    this.camaraCubo.update(this.renderizador, this.escenaHorno);
+    this.escena.background = this.objetivoCubo.texture;
+
     if (this.objetivoEntorno) this.objetivoEntorno.dispose();
-    this.objetivoEntorno = this.pmrem.fromScene(escenaCielo, 0.04);
+    this.objetivoEntorno = this.pmrem.fromCubemap(this.objetivoCubo.texture);
     this.escena.environment = this.objetivoEntorno.texture;
-    escenaCielo.remove(copia);
-    copia.geometry.dispose(); copia.material.dispose();
     return this.objetivoEntorno.texture;
   }
 
@@ -137,7 +143,7 @@ export class Cielo {
   }
 
   liberar() {
-    this.malla.geometry.dispose(); this.malla.material.dispose();
-    this.objetivoEntorno?.dispose(); this.pmrem.dispose();
+    this.mallaHorno.geometry.dispose(); this.materialCielo.dispose();
+    this.objetivoCubo.dispose(); this.objetivoEntorno?.dispose(); this.pmrem.dispose();
   }
 }
