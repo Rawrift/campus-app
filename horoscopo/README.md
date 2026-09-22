@@ -112,9 +112,13 @@ headings, y ningún estado comunicado sólo por color.
 
 ## Peso
 
-894 KB en la primera carga de un signo: 569 KB de imágenes y 256 KB de
+773 KB en la primera carga de un signo: 510 KB de imágenes y 194 KB de
 fuentes. Es una experiencia con arte propia en cada pieza y el peso va casi
 entero a eso.
+
+Se quitó la cara itálica de Newsreader: eran 63 KB para un solo párrafo por
+signo, el bloque de "sombra", que ya se distingue por su regla naranja y la
+sangría.
 
 Los 36 assets por signo pesaban 11,8 MB y quedaron en 4,1 MB reencodificados
 al tamaño en que realmente se muestran. Sólo se descargan los tres del signo
@@ -129,16 +133,25 @@ baja el subconjunto latin.
 regenerar. Se reemplaza el archivo `assets/img/figura-capricornio.webp`, se
 vuelve a medir y listo; no hay nada que tocar en el código.
 
-**Los lockups no son consistentes entre sí.** Seis vienen en crema plano
-(Aries, Tauro, Géminis, Escorpio, Libra, Sagitario) y tres con perfilado
-oscuro (Cáncer, Leo, Virgo). Los tres perfilados son consecutivos en el
-zodíaco, lo que apunta más a una tanda generada aparte que a una decisión de
-diseño. Conviene unificar antes de publicar.
+**Regenerar tres lockups: Cáncer, Leo y Virgo.** El perfilado oscuro no es
+parejo entre los doce. Midiendo el porcentaje de píxeles oscuros sobre los
+opacos: Virgo 18%, Leo 13%, Cáncer 11%, Escorpio 7%, Libra 4.2%, Tauro 3.9%,
+Sagitario 3.3%, y prácticamente cero en Aries, Piscis, Acuario, Géminis y
+Capricornio. No es una decisión de diseño por signo, es dispersión de
+producción.
+
+Se probaron dos maneras de unificarlos por código y las dos degradan la
+tipografía: llevar el contorno a un crema fijo deja un halo liso alrededor de
+la letra, porque el relleno tiene grano y el borde queda uniforme; dilatar el
+relleno sobre el contorno come el borde y deja el trazo dentado en los casos
+más cargados. Con 18% de píxeles oscuros no hay corrección automática que no
+arruine la letra, así que el arte queda **sin tocar**: los tres hay que
+volver a generarlos planos.
 
 **El glifo de Acuario tiene dos versiones.** El asset suelto es un zigzag de
 vértices angulosos; el que aparece en el poster de Acuario son ondas curvas.
-No es el mismo dibujo. Acá se usa el asset suelto, que es el que se entregó
-como pieza.
+No es el mismo dibujo. Acá se usa el asset suelto, por ser la pieza que se
+entregó como tal.
 
 **Los posters completos traen un defecto de generación.** En el borde
 superior hay una franja con una repetición invertida del logo, el glifo y las

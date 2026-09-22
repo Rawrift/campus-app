@@ -596,7 +596,9 @@ img { display: block; max-width: 100%; height: auto; }
 .bloque--sombra .bloque__texto {
   padding-left: var(--s-4);
   border-left: 2px solid var(--mandarina);
-  font-style: italic;
+  /* Sin cursiva: la regla naranja y la sangría ya separan este bloque del
+     resto, y la cara itálica de Newsreader costaba 63 KB, un 7% del peso
+     de la página, para un solo párrafo por signo. */
   color: var(--crema-suave);
 }
 
