@@ -312,31 +312,27 @@ export const GLIFOS_UNICODE = {
 };
 
 /**
- * Arte disponible por signo.
+ * Arte disponible por signo: las tres piezas dibujadas de la serie.
  *
- * `glifo` es el nombre del archivo dentro de /assets/img/. Aries usa el
- * glifo original de la serie, exportado como webp con su textura; los otros
- * once son SVG dibujados en el mismo registro (trazo grueso, terminales
- * redondeados, grano por filtro). Al llegar el glifo original de un signo,
- * se reemplaza el valor por su archivo y no hay nada más que tocar.
+ * Todas vienen recortadas a su caja de tinta, así que el tamaño que se les
+ * pide en CSS es el que ocupan de verdad. Sus medidas están en medidas.js.
  *
- * `animal` es la figura recortada con alpha. Todavía no hay ninguna: la
- * capa es opcional y la composición se sostiene sin ella. Al sumarlas van
- * como `animal-<id>.webp` y acá se pone el nombre del archivo.
+ * Reemplazar un asset es copiar el archivo encima y volver a medirlo; no
+ * hay nada más que tocar en el código.
  */
 export const ARTE_DISPONIBLE = {
-  aries:       { glifo: 'glifo-aries.webp',       animal: null },
-  tauro:       { glifo: 'glifo-tauro.svg',        animal: null },
-  geminis:     { glifo: 'glifo-geminis.svg',      animal: null },
-  cancer:      { glifo: 'glifo-cancer.webp',      animal: null },
-  leo:         { glifo: 'glifo-leo.svg',          animal: null },
-  virgo:       { glifo: 'glifo-virgo.svg',        animal: null },
-  libra:       { glifo: 'glifo-libra.svg',        animal: null },
-  escorpio:    { glifo: 'glifo-escorpio.webp',    animal: null },
-  sagitario:   { glifo: 'glifo-sagitario.svg',    animal: null },
-  capricornio: { glifo: 'glifo-capricornio.webp', animal: null },
-  acuario:     { glifo: 'glifo-acuario.webp',     animal: null },
-  piscis:      { glifo: 'glifo-piscis.svg',       animal: null },
+  aries:       { glifo: 'glifo-aries.webp',       lockup: 'lockup-aries.webp',       figura: 'figura-aries.webp' },
+  tauro:       { glifo: 'glifo-tauro.webp',       lockup: 'lockup-tauro.webp',       figura: 'figura-tauro.webp' },
+  geminis:     { glifo: 'glifo-geminis.webp',     lockup: 'lockup-geminis.webp',     figura: 'figura-geminis.webp' },
+  cancer:      { glifo: 'glifo-cancer.webp',      lockup: 'lockup-cancer.webp',      figura: 'figura-cancer.webp' },
+  leo:         { glifo: 'glifo-leo.webp',         lockup: 'lockup-leo.webp',         figura: 'figura-leo.webp' },
+  virgo:       { glifo: 'glifo-virgo.webp',       lockup: 'lockup-virgo.webp',       figura: 'figura-virgo.webp' },
+  libra:       { glifo: 'glifo-libra.webp',       lockup: 'lockup-libra.webp',       figura: 'figura-libra.webp' },
+  escorpio:    { glifo: 'glifo-escorpio.webp',    lockup: 'lockup-escorpio.webp',    figura: 'figura-escorpio.webp' },
+  sagitario:   { glifo: 'glifo-sagitario.webp',   lockup: 'lockup-sagitario.webp',   figura: 'figura-sagitario.webp' },
+  capricornio: { glifo: 'glifo-capricornio.webp', lockup: 'lockup-capricornio.webp', figura: 'figura-capricornio.webp' },
+  acuario:     { glifo: 'glifo-acuario.webp',     lockup: 'lockup-acuario.webp',     figura: 'figura-acuario.webp' },
+  piscis:      { glifo: 'glifo-piscis.webp',      lockup: 'lockup-piscis.webp',      figura: 'figura-piscis.webp' },
 };
 
 const INDICE = Object.fromEntries(SIGNOS.map((s) => [s.id, s]));

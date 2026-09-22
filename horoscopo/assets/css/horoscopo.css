@@ -340,29 +340,29 @@ img { display: block; max-width: 100%; height: auto; }
 
 /* --- 8. POSTER (la pieza que se arma) ----------------------------------- */
 
-/* Composición en capas, calcada del layout de la serie definitiva:
-   glifo arriba al centro, wordmark arriba a la izquierda, palabras clave y
-   fechas arriba a la derecha, disco al centro y el nombre GRANDE a la
-   izquierda con la frase debajo. No está centrado: ese corrimiento a la
-   izquierda es lo que le da el aire editorial a los posters.
+/* Composición en capas con los assets reales de la serie: papel, nubes,
+   disco, figura sobre su roca, glifo y el lockup tipográfico propio de cada
+   signo. Nada de esto se reconstruye con tipografía web: el lockup es la
+   pieza dibujada, con su textura.
 
-   Cada capa es un elemento propio para poder animarlas por separado: ese
-   armado ES la animación.
+   El orden vertical es glifo, lockup, disco y figura apoyada en la base.
+   Los valores salen de medir: el lockup más alto es el de Aries y termina
+   en el 45%, así que el disco arranca en el 47% y el texto nunca cae sobre
+   el naranja, donde el crema da 2.96:1 y no llega al piso AA.
 
-   Todas las medidas de adentro van en cqw sobre el ancho de la pieza, así
-   la composición es idéntica en un teléfono, en escritorio y al exportarla
-   a 1080×1350. Los porcentajes de posición son sobre la caja del poster. */
+   Todo va en cqw sobre el ancho de la pieza, así la composición es idéntica
+   en un teléfono, en escritorio y al exportarla a 1080x1350. */
 
 .escena {
   position: relative;
   z-index: 4;
-  min-height: 100svh;
-  container-type: inline-size;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: var(--s-6) var(--s-4);
+  /* Sin min-height de pantalla completa: así asoma el arranque de la
+     lectura y se ve que hay algo más abajo. Con la pieza ocupando todo el
+     alto no había ninguna señal de scroll. */
+  padding: var(--s-5) var(--s-4) var(--s-6);
 }
 
 .poster {
@@ -372,31 +372,12 @@ img { display: block; max-width: 100%; height: auto; }
   aspect-ratio: 4 / 5;
   margin-inline: auto;
   container-type: inline-size;
-  /* La pieza es un objeto cerrado, como el poster impreso: cielo propio,
-     nubes adentro y borde de papel. Antes las nubes vivían en el fondo de
-     la página y la mitad inferior quedaba vacía. */
   overflow: hidden;
-  /* Papel real de la serie, no un degradado imitándolo: ya trae su grano,
-     su veladura y el desgaste de los bordes. Por eso el poster no lleva la
-     textura sintética que usa el resto de la página. */
+  /* Papel real de la serie: ya trae su grano, su veladura y el desgaste de
+     los bordes, así que la pieza no lleva la textura sintética del resto. */
   background: var(--cielo) url('../img/papel.webp') center / cover no-repeat;
   box-shadow: 0 2cqw 6cqw rgba(14, 42, 58, .28);
 }
-
-/* Nubes del horizonte, dentro de la pieza y recortadas por su borde */
-.capa--cielo { align-items: flex-end; }
-
-.capa--cielo img {
-  position: absolute;
-  /* Quedan a ras del borde inferior y cortadas por él: son el horizonte,
-     no un elemento suelto. Cuando entre el animal sobre su roca, las nubes
-     pasan a verse por detrás, como en las piezas de la serie. */
-  opacity: .42;
-  filter: saturate(.8);
-}
-
-.capa--cielo img:first-child { width: 66%; left: -14%; bottom: -9%; }
-.capa--cielo img:last-child  { width: 46%; right: -10%; bottom: -4%; transform: scaleX(-1); }
 
 .capa {
   position: absolute;
@@ -406,34 +387,59 @@ img { display: block; max-width: 100%; height: auto; }
   justify-content: center;
 }
 
-/* Disco mandarina — el punto de marca a escala. Es el motor de todo el
-   movimiento: nace como punto y crece hasta ser sol. */
-.capa--disco { align-items: flex-start; padding-top: 28%; }
-.capa--disco img { width: 47%; }
-
-/* Glifo del signo, arriba y centrado */
-.capa--glifo { align-items: flex-start; padding-top: 11%; }
-.capa--glifo img { width: 19%; }
-
-.capa--glifo .glifo-fallback {
-  font-family: var(--font-ui);
-  font-size: 17cqw;
-  line-height: 1;
-  color: var(--crema);
-  /* El grano se aplica como máscara para que el símbolo Unicode tenga la
-     misma textura de papel que los glifos dibujados. */
-  background-image: var(--grano);
-  background-clip: text;
-  -webkit-background-clip: text;
-  filter: contrast(1.1);
+/* Nubes del horizonte, dentro de la pieza y recortadas por su borde */
+.capa--cielo img {
+  position: absolute;
+  opacity: .4;
+  filter: saturate(.8);
 }
 
-/* Animal recortado, apoyado sobre la base de la pieza */
-.capa--animal { align-items: flex-end; padding-bottom: 12%; }
-.capa--animal img { width: 76%; }
+.capa--cielo img:first-child { width: 66%; left: -14%; bottom: -8%; }
+.capa--cielo img:last-child  { width: 46%; right: -10%; bottom: -3%; transform: scaleX(-1); }
 
-/* Sin animal exportado, el disco sostiene la composición solo: la pieza
-   sigue siendo válida, no se rompe ni muestra un hueco. */
+/* Disco mandarina — el punto de marca a escala. Es el motor de todo el
+   movimiento: nace como punto y crece hasta ser sol. */
+/* Ojo: los porcentajes de padding se miden sobre el ANCHO de la pieza, y
+   el poster es 4:5, así que un 65% de ancho es un 52% de alto. El disco
+   arranca donde termina el lockup más alto de los doce (Aries, que baja
+   hasta el 48.7% del alto), para que las fechas nunca caigan sobre el
+   naranja: crema sobre mandarina da 2.96:1 y no llega al piso AA. */
+.capa--disco { align-items: flex-start; padding-top: 65%; }
+.capa--disco img { width: 43%; }
+
+/* Glifo. Se encaja dentro de una caja en vez de fijarle el ancho: las
+   proporciones van de 1.95:1 en Acuario a 0.88:1 en Leo, y dimensionando
+   por un solo lado unos quedarían enormes y otros diminutos. */
+.capa--glifo { align-items: flex-start; padding-top: 7.5%; }
+
+.capa--glifo img {
+  width: 17cqw;
+  height: 12cqw;
+  object-fit: contain;
+}
+
+/* Lockup tipográfico. El ancho lo fija --lockup-cqw, que el script calcula
+   con el factor medido de cada signo para que la línea "HORÓSCOPO" mida lo
+   mismo en los doce. */
+.capa--lockup { align-items: flex-start; padding-top: 24.4%; }
+.capa--lockup img { width: var(--lockup-cqw, 40cqw); }
+
+/* La figura se apoya en el borde inferior: su roca es la base de la pieza.
+   Se dimensiona por alto, no por ancho, para que las doce se lean paradas
+   sobre el mismo piso aunque unas sean anchas (Capricornio, con la cola) y
+   otras estrechas (la balanza). */
+.capa--animal { align-items: flex-end; }
+
+.capa--animal img {
+  width: auto;
+  max-width: 88cqw;
+  height: 58cqw;
+  object-fit: contain;
+  object-position: bottom;
+}
+
+/* Sin figura, el disco sostiene la composición solo: la pieza sigue siendo
+   válida, no se rompe ni muestra un hueco. */
 .capa--animal:empty { display: none; }
 
 /* Regla corta: el recurso gráfico del manual (05 / El punto, la línea y el
@@ -441,76 +447,45 @@ img { display: block; max-width: 100%; height: auto; }
 .regla {
   display: block;
   width: 5cqw;
-  height: .55cqw;
+  height: .5cqw;
   background: var(--crema-suave);
 }
 
 /* Wordmark arriba a la izquierda */
 .poster__marca {
   position: absolute;
-  top: 14.5%;
-  left: 5%;
+  top: 5.5%;
+  left: 5.5%;
   display: flex;
   flex-direction: column;
   gap: 2cqw;
 }
 
-.poster__marca img { width: 10cqw; }
+.poster__marca img { width: 11cqw; }
 
-/* Palabras clave y fechas, arriba a la derecha */
+/* Palabras clave arriba a la derecha */
 .poster__meta {
   position: absolute;
-  top: 15%;
-  right: 5%;
+  top: 5.5%;
+  right: 5.5%;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 2.4cqw;
+  gap: 2.2cqw;
   text-align: right;
 }
 
-.poster__palabras,
-.poster__fechas {
+/* El bloque de palabras termina en el 18% del alto y el lockup arranca en
+   el 19.5%: sin ese margen, ESCORPIO —de los nombres más anchos— toca la
+   columna de la derecha. */
+
+.poster__palabras {
   margin: 0;
   font-family: var(--font-ui);
-  font-size: 2.5cqw;
+  font-size: 2.2cqw;
   font-weight: 500;
   letter-spacing: .2em;
-  line-height: 1.85;
-  text-transform: uppercase;
-  color: var(--crema-suave);
-}
-
-/* Bloque tipográfico: nombre grande a la izquierda y frase debajo */
-.poster__tipo {
-  position: absolute;
-  top: 32%;
-  left: 5%;
-  width: 62%;
-}
-
-.poster__nombre {
-  /* Tamaño fijo salvo que el nombre no entre: los posters usan un cuerpo
-     constante y sólo achican los largos. --ancho-em lo mide el script con
-     la métrica real de Anton, porque el ancho por carácter va de 0.387em
-     (PISCIS) a 0.470em (CÁNCER). Así LEO queda grande y CAPRICORNIO entra
-     sin pasarse, igual que en las piezas. */
-  font-size: min(14.5cqw, calc(58cqw / var(--ancho-em, 2.6)));
-  font-family: var(--font-display);
-  line-height: .84;
-  letter-spacing: -.015em;
-  text-transform: uppercase;
-  color: var(--crema);
-}
-
-.poster__frase {
-  max-width: 24cqw;
-  margin: 4cqw 0 3cqw;
-  font-family: var(--font-ui);
-  font-size: 2.6cqw;
-  font-weight: 500;
-  letter-spacing: .24em;
-  line-height: 2;
+  line-height: 1.8;
   text-transform: uppercase;
   color: var(--crema-suave);
 }

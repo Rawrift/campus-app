@@ -28,9 +28,12 @@ horoscopo/
     │   ├── horoscopo.css      sistema visual y composición
     │   ├── fuentes.css        @font-face auto-hospedados
     │   └── fonts/             Anton · Inter · Newsreader (woff2)
-    ├── data/signos.js         contenido de los 12 signos + cálculo de signo
+    ├── data/
+    │   ├── signos.js          contenido de los 12 signos + cálculo de signo
+    │   └── medidas.js         caja de tinta de cada asset, medida
     ├── js/horoscopo.js        estados, animación y tarjeta compartible
-    └── img/                   disco, glifos, nubes, wordmark
+    └── img/                   papel, disco, nubes, wordmark
+                               + glifo, lockup y figura por signo
 ```
 
 ## Decisiones
@@ -54,17 +57,30 @@ formulario. Poner la fecha de nacimiento y recibir un resultado es otra cosa.
 **El estado vive en la URL.** `?signo=aries` abre directo en la pieza, así que
 todo resultado compartido lleva a la pieza y no al home.
 
-**Los glifos son vectores con grano de filtro.** Cada uno pesa ~1,2 KB y es
-nítido a cualquier tamaño. El `viewBox` es cuadrado y está centrado en la caja
-de tinta real del dibujo, así los doce tienen el mismo tamaño óptico aunque
-unos sean anchos (Acuario) y otros altos (Tauro).
+**Todo el arte es el original de la serie.** Papel, disco, nubes, wordmark y,
+por signo, glifo, lockup tipográfico y figura sobre su roca. Nada se
+reconstruye con tipografía web: el nombre de cada signo es el lockup dibujado,
+con su textura.
 
-**La tipografía se ajusta por medición.** El ancho por carácter de Anton va de
-0.387em (PISCIS) a 0.470em (CÁNCER). El script mide el nombre con la métrica
-real de la fuente y fija `--ancho-em`, de modo que los doce signos ocupan
-exactamente el mismo ancho en la pieza. El poster es un contenedor
-(`container-type: inline-size`) y todo lo de adentro va en `cqw`: la
-composición es idéntica en un teléfono, en escritorio y al exportarla.
+**Los assets se recortan a su caja de tinta.** Venían con mucho margen
+transparente y en proporciones distintas, así que dimensionarlos por el borde
+del archivo daba tamaños ópticos dispares. Recortados, el tamaño que se les
+pide en CSS es el que ocupan. Sus medidas quedan en `data/medidas.js`.
+
+**Los lockups se normalizan por la línea "HORÓSCOPO".** No se pueden escalar
+por ancho ni por alto: en LEO el elemento más ancho del bloque es "HORÓSCOPO",
+y en CAPRICORNIO es el nombre. Escalando por el borde, "HORÓSCOPO" cambiaría
+de tamaño entre signos. Se mide esa banda en cada archivo y se guarda el
+factor, de modo que la línea mide lo mismo en los doce y cada nombre conserva
+el cuerpo con que fue diseñado: LEO grande, CAPRICORNIO chico.
+
+**La figura se dimensiona por alto y se apoya en el borde inferior**, para que
+las doce se lean paradas sobre el mismo piso aunque unas sean anchas
+(Capricornio, con la cola) y otras estrechas (la balanza).
+
+El poster es un contenedor (`container-type: inline-size`) y todo lo de
+adentro va en `cqw`: la composición es idéntica en un teléfono, en escritorio
+y al exportarla a 1080×1350.
 
 **La tarjeta se genera en el navegador**, en 1080×1350 (formato de feed del
 manual). No hace falta servidor. En móvil abre el menú nativo de compartir;
@@ -96,45 +112,53 @@ headings, y ningún estado comunicado sólo por color.
 
 ## Peso
 
-695 KB en la primera carga de un signo (373 KB imágenes, 256 KB fuentes).
+894 KB en la primera carga de un signo: 569 KB de imágenes y 256 KB de
+fuentes. Es una experiencia con arte propia en cada pieza y el peso va casi
+entero a eso.
 
-Las fuentes se sirven desde el propio dominio con `unicode-range`, así que el
-navegador sólo baja el subconjunto latin. Los assets originales pesaban 1,5 MB
-y bajaron a 396 KB reencodificados al tamaño en que realmente se muestran.
+Los 36 assets por signo pesaban 11,8 MB y quedaron en 4,1 MB reencodificados
+al tamaño en que realmente se muestran. Sólo se descargan los tres del signo
+que se está viendo. Las nubes del portal cargan en diferido, así que un link
+compartido —que abre directo en la pieza— no las pide. Las fuentes se sirven
+desde el propio dominio con `unicode-range`, de modo que el navegador sólo
+baja el subconjunto latin.
 
 ## Lo que falta
 
-**Animales recortados con alpha, los 12.** Es lo único que falta de verdad, y
-es la capa que sostiene la composición. La pieza funciona sin ellos —el disco
-queda solo y no se rompe nada— pero está diseñada para llevarlos.
+**Rehacer la figura de Capricornio.** Es la única que quedó pendiente de
+regenerar. Se reemplaza el archivo `assets/img/figura-capricornio.webp`, se
+vuelve a medir y listo; no hay nada que tocar en el código.
 
-Se agregan como `assets/img/animal-<id>.webp` y se pone el nombre del archivo
-en `ARTE_DISPONIBLE` dentro de `data/signos.js`. No hay que tocar nada más: ni
-el layout, ni la animación, ni el generador de la tarjeta. Al sumarlos conviene
-revisar el equilibrio de la composición, porque la figura ocupa el centro y
-cambia el peso de la pieza.
+**Los lockups no son consistentes entre sí.** Seis vienen en crema plano
+(Aries, Tauro, Géminis, Escorpio, Libra, Sagitario) y tres con perfilado
+oscuro (Cáncer, Leo, Virgo). Los tres perfilados son consecutivos en el
+zodíaco, lo que apunta más a una tanda generada aparte que a una decisión de
+diseño. Conviene unificar antes de publicar.
 
-No hace falta que vengan recortados: si llegan con fondo, el recorte a alpha se
-puede automatizar.
+**El glifo de Acuario tiene dos versiones.** El asset suelto es un zigzag de
+vértices angulosos; el que aparece en el poster de Acuario son ondas curvas.
+No es el mismo dibujo. Acá se usa el asset suelto, que es el que se entregó
+como pieza.
 
-**Revisar el glifo de Escorpio.** Los once glifos que faltaban están dibujados
-como SVG en el registro de la serie (trazo de 22 sobre caja de 200, terminales
-redondeados, grano por filtro), pero no son los originales de SIESTA: son un
-reemplazo hecho acá. El de Escorpio es el más flojo — con ese grosor de trazo
-la punta de flecha tiende a macizarse. Si aparecen los originales, se copian a
-`assets/img/` y se cambia el nombre del archivo en `ARTE_DISPONIBLE`.
+**Los posters completos traen un defecto de generación.** En el borde
+superior hay una franja con una repetición invertida del logo, el glifo y las
+palabras clave, y abajo la roca tiene un reflejo especular. Está en los doce.
+Acá no afecta, porque la pieza se recompone por capas, pero si se publican
+como imagen hay que recortarlos.
+
+**El nombre sobre el disco no llega a AA.** En los lockups el crema sobre
+mandarina da 2.96:1 y el piso para texto grande es 3:1. La composición evita
+que el texto chico caiga sobre naranja, que es lo que importa para leer, pero
+el bloque tipográfico grande sí lo toca en algunos signos. Es el diseño de la
+serie y se respeta; queda anotado, no corregido.
 
 **`favicon.svg` es provisorio.** Usa el disco mandarina para no inventar una
 marca compacta que ya existe dibujada. Reemplazar por `icon-s.svg` del
 Brand System 1.2.
 
-**Open Graph por signo.** Hoy todos los signos comparten
-`assets/img/og-horoscopo.jpg`. Una OG por signo necesita renderizado del lado
-del servidor; la tarjeta que ya se genera en el navegador sirve de plantilla.
-
-**Revisar las fechas de Libra.** El poster grande dice 23 SEP — 22 OCT y la
-lámina de contacto dice 21 SEP. El código usa 23 SEP, que es lo convencional,
-pero conviene unificarlo también en las piezas gráficas.
+**Open Graph por signo.** Hoy todos comparten `assets/img/og-horoscopo.jpg`.
+Una OG por signo necesita renderizado del lado del servidor; la tarjeta que ya
+se genera en el navegador sirve de plantilla.
 
 **Lecturas diarias.** El campo `energia` de cada signo es hoy un texto fijo.
 Para pasar a diario se reemplaza por una lectura traída de un JSON o del CMS,

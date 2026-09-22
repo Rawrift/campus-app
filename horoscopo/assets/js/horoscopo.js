@@ -10,6 +10,7 @@ import {
   SIGNOS, GLIFOS_UNICODE, ARTE_DISPONIBLE,
   porId, signoDe, diasDelMes, MESES,
 } from '../data/signos.js';
+import { MEDIDAS, BANDA_CQW } from '../data/medidas.js';
 
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 
@@ -25,27 +26,22 @@ const IMG = {
 /* La secuencia del armado. El orden importa: es el poster construyéndose
    por capas, de fondo a frente. Los tiempos salen de los tokens de
    movimiento del manual (180–400 ms, encadenados). */
-const SECUENCIA = [
-  { capa: 'disco',  delay: 120 },
-  { capa: 'animal', delay: 460 },
-  { capa: 'glifo',  delay: 700 },
-  { capa: 'kicker', delay: 860 },
-  { capa: 'nombre', delay: 940 },
-  { capa: 'fechas', delay: 1060 },
-];
+const SECUENCIA = {
+  cielo:  60,
+  disco:  140,
+  figura: 480,
+  glifo:  760,
+  marca:  900,
+  lockup: 980,
+};
+
+/* Ancho del lockup de un signo, en cqw, para que la línea "HORÓSCOPO" mida
+   lo mismo en los doce. El factor sale de medir cada archivo. */
+function anchoLockup(id) {
+  return (BANDA_CQW * (MEDIDAS[id]?.lockup.factor ?? 1.3)).toFixed(1);
+}
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-/* Ancho del nombre en el display, medido con la métrica real de la fuente.
-   El ancho por carácter de Anton va de 0.387em (PISCIS) a 0.470em (CÁNCER):
-   con un promedio, los nombres cortos quedan chicos y los largos se salen.
-   Midiendo, los doce ocupan exactamente el mismo ancho en la pieza. */
-const medidor = document.createElement('canvas').getContext('2d');
-
-function anchoEm(texto) {
-  medidor.font = '100px Anton, Arial Narrow, sans-serif';
-  return medidor.measureText(texto.toUpperCase()).width / 100;
-}
 
 /* --- Selector de fecha --------------------------------------------------- */
 
@@ -76,49 +72,51 @@ function armarSelectores() {
 
 function renderPoster(signo) {
   const arte = ARTE_DISPONIBLE[signo.id] || {};
+  const med = MEDIDAS[signo.id] || {};
 
-  // Glifo: dibujo propio si existe, símbolo Unicode con textura si no.
+  // Las tres piezas son opcionales por separado: si falta una, la pieza se
+  // sostiene con las demás en vez de mostrar un hueco.
   const glifo = arte.glifo
-    ? `<img src="${IMG.arte(arte.glifo)}" alt="" width="420" height="420" data-anim="glifo" style="--d:${SECUENCIA[2].delay}ms">`
-    : `<span class="glifo-fallback" aria-hidden="true" data-anim="glifo" style="--d:${SECUENCIA[2].delay}ms">${GLIFOS_UNICODE[signo.id]}</span>`;
+    ? `<img src="${IMG.arte(arte.glifo)}" alt="" width="${med.glifo?.w || 400}" height="${med.glifo?.h || 400}"
+           data-anim="glifo" style="--d:${SECUENCIA.glifo}ms">`
+    : `<span class="glifo-fallback" aria-hidden="true" data-anim="glifo"
+             style="--d:${SECUENCIA.glifo}ms">${GLIFOS_UNICODE[signo.id]}</span>`;
 
-  // El animal es una capa opcional: si todavía no está exportado con alpha,
-  // la composición se sostiene sola en vez de mostrar un hueco.
-  const animal = arte.animal
-    ? `<img src="${IMG.arte(arte.animal)}" alt="${signo.animal}, símbolo de ${signo.nombre}" data-anim="animal" style="--d:${SECUENCIA[1].delay}ms">`
+  const lockup = arte.lockup
+    ? `<img src="${IMG.arte(arte.lockup)}" alt="Horóscopo ${signo.nombre}, ${signo.fechas}"
+           width="${med.lockup?.w || 680}" height="${med.lockup?.h || 500}"
+           data-anim style="--d:${SECUENCIA.lockup}ms">`
     : '';
 
-  // Las fechas vienen como "21 MAR — 19 ABR" y en el poster van en dos
-  // líneas, una por extremo, como en las piezas de la serie.
-  const fechas = signo.fechas.split('—').map((t) => t.trim()).join('<br>');
+  const figura = arte.figura
+    ? `<img src="${IMG.arte(arte.figura)}" alt="${signo.animal}, símbolo de ${signo.nombre}"
+           width="${med.figura?.w || 820}" height="${med.figura?.h || 1000}"
+           data-anim="figura" style="--d:${SECUENCIA.figura}ms">`
+    : '';
+
+  $('#poster').style.setProperty('--lockup-cqw', `${anchoLockup(signo.id)}cqw`);
 
   $('#poster').innerHTML = `
     <div class="capa capa--cielo" aria-hidden="true">
-      <img src="assets/img/nube-1.webp" alt="" width="705" height="356" data-anim style="--d:60ms">
-      <img src="assets/img/nube-6.webp" alt="" width="393" height="233" data-anim style="--d:60ms">
+      <img src="assets/img/nube-1.webp" alt="" width="620" height="313" data-anim style="--d:${SECUENCIA.cielo}ms">
+      <img src="assets/img/nube-6.webp" alt="" width="380" height="225" data-anim style="--d:${SECUENCIA.cielo}ms">
     </div>
-    <div class="capa capa--disco">
-      <img src="${IMG.disco}" alt="" width="800" height="800" data-anim="disco" style="--d:${SECUENCIA[0].delay}ms">
-    </div>
-    <div class="capa capa--animal">${animal}</div>
-    <div class="capa capa--glifo">${glifo}</div>
 
-    <div class="poster__marca" data-anim style="--d:${SECUENCIA[3].delay}ms">
+    <div class="capa capa--disco">
+      <img src="${IMG.disco}" alt="" width="620" height="620" data-anim="disco" style="--d:${SECUENCIA.disco}ms">
+    </div>
+
+    <div class="capa capa--animal">${figura}</div>
+    <div class="capa capa--glifo">${glifo}</div>
+    <div class="capa capa--lockup">${lockup}</div>
+
+    <div class="poster__marca" data-anim style="--d:${SECUENCIA.marca}ms">
       <img src="${IMG.wordmark}" alt="SIESTA" width="420" height="140">
       <span class="regla"></span>
     </div>
 
-    <div class="poster__meta" data-anim style="--d:${SECUENCIA[3].delay}ms">
+    <div class="poster__meta" data-anim style="--d:${SECUENCIA.marca}ms">
       <p class="poster__palabras">${signo.palabras.join('<br>')}</p>
-      <span class="regla"></span>
-      <p class="poster__fechas">${fechas}</p>
-    </div>
-
-    <div class="poster__tipo">
-      <h1 class="poster__nombre" data-anim
-          style="--d:${SECUENCIA[4].delay}ms; --ancho-em:${anchoEm(signo.nombre).toFixed(3)}">${signo.nombre}</h1>
-      <p class="poster__frase" data-anim style="--d:${SECUENCIA[5].delay}ms">${signo.frase}</p>
-      <span class="regla" data-anim style="--d:${SECUENCIA[5].delay}ms"></span>
     </div>`;
 
   // Forzar un reflow antes de agregar la clase para que la animación
@@ -227,71 +225,50 @@ function cargarImagen(src) {
   });
 }
 
-/* Dibuja un texto en mayúsculas con tracking y salto de línea por ancho.
-   Canvas no tiene wrapping: hay que medir palabra por palabra. */
-function parrafo(ctx, texto, x, y, maxAncho, alto) {
-  const palabras = texto.toUpperCase().split(' ');
-  let linea = '';
-  let cursor = y;
-  for (const w of palabras) {
-    const prueba = linea ? `${linea} ${w}` : w;
-    if (ctx.measureText(prueba).width > maxAncho && linea) {
-      ctx.fillText(linea, x, cursor);
-      cursor += alto;
-      linea = w;
-    } else {
-      linea = prueba;
-    }
-  }
-  if (linea) { ctx.fillText(linea, x, cursor); cursor += alto; }
-  return cursor;
-}
-
 async function generarTarjeta(signo) {
   const canvas = document.createElement('canvas');
   canvas.width = CARD.w;
   canvas.height = CARD.h;
   const ctx = canvas.getContext('2d');
+  const W = CARD.w, H = CARD.h;
 
-  // Papel de fondo: el mismo asset de la serie que usa el poster en pantalla.
   ctx.fillStyle = '#2d6b87';
-  ctx.fillRect(0, 0, CARD.w, CARD.h);
+  ctx.fillRect(0, 0, W, H);
 
   const arte = ARTE_DISPONIBLE[signo.id] || {};
-  const [papel, disco, glifo, animal, wordmark, nubeA, nubeB] = await Promise.all([
+  const [papel, disco, glifo, figura, lockup, wordmark, nubeA, nubeB] = await Promise.all([
     cargarImagen('assets/img/papel.webp'),
     cargarImagen(IMG.disco),
-    arte.glifo ? cargarImagen(IMG.arte(arte.glifo)) : null,
-    arte.animal ? cargarImagen(IMG.arte(arte.animal)) : null,
+    arte.glifo  ? cargarImagen(IMG.arte(arte.glifo))  : null,
+    arte.figura ? cargarImagen(IMG.arte(arte.figura)) : null,
+    arte.lockup ? cargarImagen(IMG.arte(arte.lockup)) : null,
     cargarImagen(IMG.wordmark),
     cargarImagen('assets/img/nube-1.webp'),
     cargarImagen('assets/img/nube-6.webp'),
   ]);
 
   /* Las proporciones son las mismas que en pantalla, calcadas del CSS: la
-     tarjeta es el mismo poster, no una composición paralela que después se
-     desincroniza. Los porcentajes de X van sobre el ancho; los de Y, sobre
-     lo que corresponda según de dónde salen en el CSS. */
-  const W = CARD.w, H = CARD.h;
-  const cq = (n) => W * n / 100;   // equivalente de la unidad cqw
+     tarjeta es el mismo poster y no una composición paralela que después se
+     desincroniza. Los valores en cqw se convierten con cq(); los que en CSS
+     eran porcentaje del alto van directo sobre H. */
+  const cq = (n) => W * n / 100;
 
   if (papel) {
-    // cover: se escala al lado que falte y se centra, como background-size
     const esc = Math.max(W / papel.width, H / papel.height);
     const pw = papel.width * esc, ph = papel.height * esc;
     ctx.drawImage(papel, (W - pw) / 2, (H - ph) / 2, pw, ph);
   }
 
-  // Nubes del horizonte
-  ctx.globalAlpha = .42;
+  // Nubes del horizonte, recortadas por el borde inferior
+  ctx.globalAlpha = .4;
   if (nubeA) {
     const w = W * .66, h = w * (nubeA.height / nubeA.width);
-    ctx.drawImage(nubeA, -W * .14, H + H * .09 - h, w, h);
+    ctx.drawImage(nubeA, -W * .14, H + H * .08 - h, w, h);
   }
   if (nubeB) {
     const w = W * .46, h = w * (nubeB.height / nubeB.width);
     ctx.save();
-    ctx.translate(W + W * .10, H + H * .04 - h);
+    ctx.translate(W + W * .10, H + H * .03 - h);
     ctx.scale(-1, 1);
     ctx.drawImage(nubeB, 0, 0, w, h);
     ctx.restore();
@@ -300,85 +277,59 @@ async function generarTarjeta(signo) {
 
   // Disco
   if (disco) {
-    const d = W * .47;
-    ctx.drawImage(disco, (W - d) / 2, cq(28), d, d);
+    const d = W * .43;
+    ctx.drawImage(disco, (W - d) / 2, H * .52, d, d);
   }
 
-  // Animal
-  if (animal) {
-    const aw = W * .76;
-    const ah = aw * (animal.height / animal.width);
-    ctx.drawImage(animal, (W - aw) / 2, H - H * .12 - ah, aw, ah);
+  // Figura, apoyada en el borde inferior y dimensionada por alto
+  if (figura) {
+    const fh = cq(58);
+    const fw = fh * (figura.width / figura.height);
+    ctx.drawImage(figura, (W - fw) / 2, H - fh, fw, fh);
   }
 
-  // Glifo
-  const gw = W * .19;
+  // Glifo: encajado en su caja, como el object-fit del CSS
+  const gw = cq(17), gh = cq(12);
   if (glifo) {
-    ctx.drawImage(glifo, (W - gw) / 2, cq(11), gw, gw * (glifo.height / glifo.width));
+    const esc = Math.min(gw / glifo.width, gh / glifo.height);
+    const w = glifo.width * esc, h = glifo.height * esc;
+    ctx.drawImage(glifo, (W - w) / 2, H * .06 + (gh - h) / 2, w, h);
   } else {
     ctx.fillStyle = '#f2e4c6';
-    ctx.font = `${Math.round(cq(17))}px Inter, system-ui, sans-serif`;
+    ctx.font = `${Math.round(gh)}px Inter, system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(GLIFOS_UNICODE[signo.id], W / 2, cq(11));
+    ctx.fillText(GLIFOS_UNICODE[signo.id], W / 2, H * .06);
   }
 
-  const regla = (x, y, alineado = 'left') => {
-    ctx.fillStyle = '#e6d4b0';
-    const w = cq(5);
-    ctx.fillRect(alineado === 'right' ? x - w : x, y, w, cq(.55));
-  };
+  // Lockup, con el ancho normalizado por la banda "HORÓSCOPO"
+  if (lockup) {
+    const lw = cq(Number(anchoLockup(signo.id)));
+    const lh = lw * (lockup.height / lockup.width);
+    ctx.drawImage(lockup, (W - lw) / 2, H * .195, lw, lh);
+  }
 
-  // Wordmark arriba a la izquierda
+  // Wordmark y su regla, arriba a la izquierda
   if (wordmark) {
-    const ww = cq(10);
-    ctx.drawImage(wordmark, W * .05, H * .145, ww, ww * (wordmark.height / wordmark.width));
-    regla(W * .05, H * .145 + ww * (wordmark.height / wordmark.width) + cq(2));
+    const ww = cq(11);
+    const wh = ww * (wordmark.height / wordmark.width);
+    ctx.drawImage(wordmark, W * .055, H * .055, ww, wh);
+    ctx.fillStyle = '#e6d4b0';
+    ctx.fillRect(W * .055, H * .055 + wh + cq(2), cq(5), cq(.5));
   }
 
-  // Palabras clave y fechas, arriba a la derecha
+  // Palabras clave, arriba a la derecha
   ctx.textAlign = 'right';
   ctx.textBaseline = 'top';
   ctx.fillStyle = '#e6d4b0';
-  ctx.font = `500 ${Math.round(cq(2.5))}px Inter, system-ui, sans-serif`;
-  ctx.letterSpacing = `${cq(.5).toFixed(1)}px`;
-  const altoMeta = cq(2.5) * 1.85;
-  let my = H * .15;
+  ctx.font = `500 ${Math.round(cq(2.2))}px Inter, system-ui, sans-serif`;
+  ctx.letterSpacing = `${cq(.44).toFixed(1)}px`;
+  let y = H * .055;
   for (const palabra of signo.palabras) {
-    ctx.fillText(palabra.toUpperCase(), W * .95, my);
-    my += altoMeta;
-  }
-  my += cq(2.4);
-  regla(W * .95, my, 'right');
-  my += cq(.55) + cq(2.4);
-  for (const t of signo.fechas.split('—').map((x) => x.trim())) {
-    ctx.fillText(t, W * .95, my);
-    my += altoMeta;
+    ctx.fillText(palabra.toUpperCase(), W * .945, y);
+    y += cq(2.2) * 1.8;
   }
   ctx.letterSpacing = '0px';
-
-  // Nombre grande a la izquierda
-  const NOMBRE = signo.nombre.toUpperCase();
-  ctx.font = '100px Anton, Arial Narrow, sans-serif';
-  const anchoBase = ctx.measureText(NOMBRE).width / 100;
-  const cuerpo = Math.round(Math.min(cq(14.5), cq(58) / anchoBase));
-
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
-  ctx.font = `${cuerpo}px Anton, Arial Narrow, sans-serif`;
-  ctx.fillStyle = '#f2e4c6';
-  const m = ctx.measureText(NOMBRE);
-  const base = H * .32 + m.actualBoundingBoxAscent;
-  ctx.fillText(NOMBRE, W * .05, base);
-
-  // Frase debajo, en versalitas con tracking, y la regla de cierre
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = '#e6d4b0';
-  ctx.font = `500 ${Math.round(cq(2.6))}px Inter, system-ui, sans-serif`;
-  ctx.letterSpacing = `${cq(.62).toFixed(1)}px`;
-  const finFrase = parrafo(ctx, signo.frase, W * .05, base + cq(4), cq(24), cq(2.6) * 2);
-  ctx.letterSpacing = '0px';
-  regla(W * .05, finFrase + cq(1.6));
 
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
 }
@@ -480,8 +431,8 @@ function mostrarPortal() {
 async function init() {
   armarSelectores();
 
-  // Sin esperar a la fuente, el medidor devuelve la métrica de la de
-  // respaldo y el nombre del signo queda con el tamaño equivocado.
+  // Anton sólo sostiene la frase de la lectura; el poster usa los lockups
+  // dibujados. Se precarga igual para que el texto no salte al aparecer.
   try { await document.fonts.load('100px Anton'); } catch { /* seguimos con el respaldo */ }
 
   $('#form-fecha').addEventListener('submit', (ev) => {
