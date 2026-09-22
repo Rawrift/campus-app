@@ -311,12 +311,31 @@ export const GLIFOS_UNICODE = {
 };
 
 /**
- * Signos que ya tienen arte propia exportada con alpha.
- * Al sumar los archivos a /assets/img/ se agrega el id acá y la pieza
- * pasa de placeholder tipográfico a la ilustración real.
+ * Arte disponible por signo.
+ *
+ * `glifo` es el nombre del archivo dentro de /assets/img/. Aries usa el
+ * glifo original de la serie, exportado como webp con su textura; los otros
+ * once son SVG dibujados en el mismo registro (trazo grueso, terminales
+ * redondeados, grano por filtro). Al llegar el glifo original de un signo,
+ * se reemplaza el valor por su archivo y no hay nada más que tocar.
+ *
+ * `animal` es la figura recortada con alpha. Todavía no hay ninguna: la
+ * capa es opcional y la composición se sostiene sin ella. Al sumarlas van
+ * como `animal-<id>.webp` y acá se pone el nombre del archivo.
  */
 export const ARTE_DISPONIBLE = {
-  aries: { glifo: true, animal: false },
+  aries:       { glifo: 'glifo-aries.webp',       animal: null },
+  tauro:       { glifo: 'glifo-tauro.svg',        animal: null },
+  geminis:     { glifo: 'glifo-geminis.svg',      animal: null },
+  cancer:      { glifo: 'glifo-cancer.svg',       animal: null },
+  leo:         { glifo: 'glifo-leo.svg',          animal: null },
+  virgo:       { glifo: 'glifo-virgo.svg',        animal: null },
+  libra:       { glifo: 'glifo-libra.svg',        animal: null },
+  escorpio:    { glifo: 'glifo-escorpio.svg',     animal: null },
+  sagitario:   { glifo: 'glifo-sagitario.svg',    animal: null },
+  capricornio: { glifo: 'glifo-capricornio.svg',  animal: null },
+  acuario:     { glifo: 'glifo-acuario.svg',      animal: null },
+  piscis:      { glifo: 'glifo-piscis.svg',       animal: null },
 };
 
 const INDICE = Object.fromEntries(SIGNOS.map((s) => [s.id, s]));

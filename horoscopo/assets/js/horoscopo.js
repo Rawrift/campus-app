@@ -16,8 +16,10 @@ const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const IMG = {
   disco:    'assets/img/disco.webp',
   wordmark: 'assets/img/wordmark-siesta.webp',
-  glifo:    (id) => `assets/img/glifo-${id}.webp`,
-  animal:   (id) => `assets/img/animal-${id}.webp`,
+  // Los nombres de archivo salen de ARTE_DISPONIBLE, no se arman acá: cada
+  // signo puede traer su glifo en el formato que corresponda (el de Aries es
+  // el webp original de la serie; los otros once, SVG dibujados).
+  arte:     (archivo) => `assets/img/${archivo}`,
 };
 
 /* La secuencia del armado. El orden importa: es el poster construyéndose
@@ -75,15 +77,15 @@ function armarSelectores() {
 function renderPoster(signo) {
   const arte = ARTE_DISPONIBLE[signo.id] || {};
 
-  // Glifo: ilustración propia si existe, símbolo Unicode con textura si no.
+  // Glifo: dibujo propio si existe, símbolo Unicode con textura si no.
   const glifo = arte.glifo
-    ? `<img src="${IMG.glifo(signo.id)}" alt="" width="264" height="264" data-anim="glifo" style="--d:${SECUENCIA[2].delay}ms">`
+    ? `<img src="${IMG.arte(arte.glifo)}" alt="" width="420" height="420" data-anim="glifo" style="--d:${SECUENCIA[2].delay}ms">`
     : `<span class="glifo-fallback" aria-hidden="true" data-anim="glifo" style="--d:${SECUENCIA[2].delay}ms">${GLIFOS_UNICODE[signo.id]}</span>`;
 
   // El animal es una capa opcional: si todavía no está exportado con alpha,
   // la composición se sostiene sola en vez de mostrar un hueco.
   const animal = arte.animal
-    ? `<img src="${IMG.animal(signo.id)}" alt="${signo.animal}, símbolo de ${signo.nombre}" width="940" height="1170" data-anim="animal" style="--d:${SECUENCIA[1].delay}ms">`
+    ? `<img src="${IMG.arte(arte.animal)}" alt="${signo.animal}, símbolo de ${signo.nombre}" data-anim="animal" style="--d:${SECUENCIA[1].delay}ms">`
     : '';
 
   $('#poster').innerHTML = `
@@ -233,8 +235,8 @@ async function generarTarjeta(signo) {
   const arte = ARTE_DISPONIBLE[signo.id] || {};
   const [disco, glifo, animal, wordmark] = await Promise.all([
     cargarImagen(IMG.disco),
-    arte.glifo ? cargarImagen(IMG.glifo(signo.id)) : null,
-    arte.animal ? cargarImagen(IMG.animal(signo.id)) : null,
+    arte.glifo ? cargarImagen(IMG.arte(arte.glifo)) : null,
+    arte.animal ? cargarImagen(IMG.arte(arte.animal)) : null,
     cargarImagen(IMG.wordmark),
   ]);
 

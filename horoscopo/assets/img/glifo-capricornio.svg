@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="31.18 38.90 134.84 134.84" width="420" height="420" role="img" aria-label="Símbolo de capricornio">
+  <!-- Glifo de capricornio para SIESTA · Horóscopo.
+       Trazo grueso de terminales redondeados, en la línea del glifo de Aries
+       de la serie. El grano se aplica con un filtro en vez de una textura
+       aparte: pesa nada y es nítido a cualquier tamaño.
+
+       El viewBox es cuadrado y está centrado en la caja de tinta real del
+       dibujo, para que los doce tengan el mismo tamaño óptico aunque unos
+       sean anchos (Acuario) y otros altos (Tauro). -->
+  <defs>
+    <filter id="g8" x="-6%" y="-6%" width="112%" height="112%">
+      <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="3" seed="11" result="ruido"/>
+      <feColorMatrix in="ruido" type="matrix"
+        values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -22 20.4" result="pecas"/>
+      <feComposite in="SourceGraphic" in2="pecas" operator="in"/>
+    </filter>
+  </defs>
+  <g filter="url(#g8)" fill="none" stroke="#f0e2c4" stroke-width="22"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M46,146 L46,84 Q46,64 66,66 Q88,69 96,92 L108,126"/>
+    <path d="M108,126 C114,152 142,154 150,130 C157,108 132,96 118,110"/>
+  </g>
+</svg>

@@ -54,6 +54,11 @@ formulario. Poner la fecha de nacimiento y recibir un resultado es otra cosa.
 **El estado vive en la URL.** `?signo=aries` abre directo en la pieza, así que
 todo resultado compartido lleva a la pieza y no al home.
 
+**Los glifos son vectores con grano de filtro.** Cada uno pesa ~1,2 KB y es
+nítido a cualquier tamaño. El `viewBox` es cuadrado y está centrado en la caja
+de tinta real del dibujo, así los doce tienen el mismo tamaño óptico aunque
+unos sean anchos (Acuario) y otros altos (Tauro).
+
 **La tipografía se ajusta por medición.** El ancho por carácter de Anton va de
 0.387em (PISCIS) a 0.470em (CÁNCER). El script mide el nombre con la métrica
 real de la fuente y fija `--ancho-em`, de modo que los doce signos ocupan
@@ -91,7 +96,7 @@ headings, y ningún estado comunicado sólo por color.
 
 ## Peso
 
-693 KB en la primera carga de un signo (373 KB imágenes, 256 KB fuentes).
+695 KB en la primera carga de un signo (373 KB imágenes, 256 KB fuentes).
 
 Las fuentes se sirven desde el propio dominio con `unicode-range`, así que el
 navegador sólo baja el subconjunto latin. Los assets originales pesaban 1,5 MB
@@ -99,17 +104,25 @@ y bajaron a 396 KB reencodificados al tamaño en que realmente se muestran.
 
 ## Lo que falta
 
-**Animales recortados con alpha, los 12.** Es la capa que sostiene la
-composición. La pieza funciona sin ellos —el disco queda solo y no se rompe
-nada— pero está diseñada para llevarlos. Se agregan como
-`assets/img/animal-<id>.webp` y se marca `animal: true` en `ARTE_DISPONIBLE`
-dentro de `data/signos.js`. Al sumarlos conviene revisar el equilibrio de la
-composición: la figura ocupa el centro y cambia el peso.
+**Animales recortados con alpha, los 12.** Es lo único que falta de verdad, y
+es la capa que sostiene la composición. La pieza funciona sin ellos —el disco
+queda solo y no se rompe nada— pero está diseñada para llevarlos.
 
-**Glifos de los 11 signos restantes.** Sólo Aries tiene el glifo dibujado. Los
-demás caen a su símbolo Unicode con la textura de papel aplicada por máscara,
-que funciona pero no es lo mismo. Se agregan como
-`assets/img/glifo-<id>.webp` + `glifo: true`.
+Se agregan como `assets/img/animal-<id>.webp` y se pone el nombre del archivo
+en `ARTE_DISPONIBLE` dentro de `data/signos.js`. No hay que tocar nada más: ni
+el layout, ni la animación, ni el generador de la tarjeta. Al sumarlos conviene
+revisar el equilibrio de la composición, porque la figura ocupa el centro y
+cambia el peso de la pieza.
+
+No hace falta que vengan recortados: si llegan con fondo, el recorte a alpha se
+puede automatizar.
+
+**Revisar el glifo de Escorpio.** Los once glifos que faltaban están dibujados
+como SVG en el registro de la serie (trazo de 22 sobre caja de 200, terminales
+redondeados, grano por filtro), pero no son los originales de SIESTA: son un
+reemplazo hecho acá. El de Escorpio es el más flojo — con ese grosor de trazo
+la punta de flecha tiende a macizarse. Si aparecen los originales, se copian a
+`assets/img/` y se cambia el nombre del archivo en `ARTE_DISPONIBLE`.
 
 **`favicon.svg` es provisorio.** Usa el disco mandarina para no inventar una
 marca compacta que ya existe dibujada. Reemplazar por `icon-s.svg` del
