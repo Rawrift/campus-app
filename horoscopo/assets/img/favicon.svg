@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Horóscopo SIESTA">
+  <!-- Provisorio: el disco mandarina de la serie. Reemplazar por icon-s.svg
+       del Brand System 1.2 cuando esté disponible, para no inventar una
+       marca compacta que ya existe dibujada. -->
+  <rect width="32" height="32" fill="#1e5570"/>
+  <circle cx="16" cy="16" r="9" fill="#e8512a"/>
+</svg>
