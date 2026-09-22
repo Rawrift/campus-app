@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Horóscopo · SIESTA</title>
+<meta name="description" content="Horóscopo de SIESTA. Poné tu fecha de nacimiento y llevate tu signo en una pieza para compartir.">
+<meta name="theme-color" content="#1e5570">
+
+<!-- Open Graph. La imagen por defecto se reemplaza por una por signo cuando
+     el sitio pueda generar OG dinámico; hasta entonces todas comparten la
+     portada de la serie, que ya es reconocible. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SIESTA">
+<meta property="og:title" content="Horóscopo · SIESTA">
+<meta property="og:description" content="Otra forma de leer tu signo.">
+<meta property="og:image" content="assets/img/og-horoscopo.jpg">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="stylesheet" href="assets/css/fuentes.css">
+<link rel="stylesheet" href="assets/css/horoscopo.css">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+
+<!-- Anton sostiene todo el display del poster: se precarga para que el
+     bloque tipográfico no aparezca primero con la fuente de respaldo. -->
+<link rel="preload" as="font" type="font/woff2" crossorigin
+      href="assets/css/fonts/anton-normal-latin-1.woff2">
+
+<!-- El disco es la primera capa de la animación: conviene tenerlo en mano
+     antes de que arranque la secuencia. -->
+<link rel="preload" as="image" href="assets/img/disco.webp">
+</head>
+
+<body class="papel">
+
+<header class="marca">
+  <a href="/" aria-label="Ir al inicio de SIESTA">
+    <img class="marca__logo" src="assets/img/wordmark-siesta.webp" alt="SIESTA" width="2000" height="667">
+  </a>
+  <p class="marca__kicker">
+    Horóscopo<br>Cultura · Actualidad<br>Para gente real
+  </p>
+</header>
+
+<!-- ===== PORTAL ======================================================== -->
+<main id="portal" class="portal">
+  <div class="nubes" aria-hidden="true">
+    <img class="nube nube--a" src="assets/img/nube-1.webp" alt="" width="705" height="356" fetchpriority="low">
+    <img class="nube nube--b" src="assets/img/nube-3.webp" alt="" width="720" height="216" fetchpriority="low">
+    <img class="nube nube--c" src="assets/img/nube-6.webp" alt="" width="393" height="233" fetchpriority="low">
+  </div>
+
+  <div class="portal__cuerpo">
+    <h1 class="portal__titulo">Horóscopo</h1>
+
+    <p class="portal__bajada">
+      Doce signos, doce maneras de estar en el mundo.
+      Poné tu fecha de nacimiento y llevate la tuya.
+    </p>
+
+    <form id="form-fecha" class="fecha" novalidate>
+      <div class="fecha__campo">
+        <label class="fecha__label" for="dia">Día</label>
+        <select class="fecha__select" id="dia" name="dia" required></select>
+      </div>
+      <div class="fecha__campo">
+        <label class="fecha__label" for="mes">Mes</label>
+        <select class="fecha__select" id="mes" name="mes" required></select>
+      </div>
+      <button class="boton boton--primario" type="submit">Ver mi signo</button>
+    </form>
+
+    <noscript>
+      <p class="portal__bajada">
+        Este horóscopo necesita JavaScript para armar tu pieza.
+        Activalo y volvé a cargar la página.
+      </p>
+    </noscript>
+  </div>
+</main>
+
+<!-- ===== RESULTADO ===================================================== -->
+<div id="resultado" hidden>
+  <section id="escena" class="escena" aria-label="Tu signo">
+    <div class="nubes" aria-hidden="true">
+      <img class="nube nube--a" src="assets/img/nube-1.webp" alt="" width="705" height="356">
+      <img class="nube nube--c" src="assets/img/nube-6.webp" alt="" width="393" height="233">
+    </div>
+    <div id="poster" class="poster"></div>
+  </section>
+
+  <article id="lectura" class="lectura"></article>
+</div>
+
+<footer class="pie">
+  <p class="pie__ia">Ilustraciones generadas con IA</p>
+  <p>
+    SIESTA · Otra forma de estar informados.<br>
+    Chaco, Argentina · <a href="/">siesta</a>
+  </p>
+  <p style="margin-top:var(--s-3);opacity:.75">
+    El horóscopo es contenido de entretenimiento y no tiene valor predictivo.
+  </p>
+</footer>
+
+<script type="module" src="assets/js/horoscopo.js"></script>
+</body>
+</html>
