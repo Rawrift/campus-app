@@ -8,8 +8,9 @@
  * layout ni la animación. Todo lo demás (retrato, sombra, vínculos) es
  * estable y no necesita mantenimiento.
  *
- * Fechas y palabras clave tomadas de los posters de la serie.
- * Las frases son las que ya existen en cada pieza: son el activo compartible.
+ * Fechas, palabras clave y frases tomadas literalmente de los posters
+ * definitivos de la serie: la pieza manda sobre cualquier versión anterior.
+ * Cada lista de palabras abre con el elemento, como en los posters.
  */
 
 export const SIGNOS = [
@@ -45,8 +46,8 @@ export const SIGNOS = [
     elemento: 'Tierra',
     regente: 'Venus',
     modalidad: 'Fijo',
-    frase: 'Lo simple también es extraordinario.',
-    palabras: ['Paciencia', 'Placer', 'Estabilidad', 'Raíces'],
+    frase: 'Fuerza sin apuro.',
+    palabras: ['Tierra', 'Calma', 'Deseo', 'Constancia'],
     animal: 'Toro',
     retrato:
       'No te apurás y eso confunde a la gente: creen que dudás cuando en realidad estás esperando que valga la pena. Cuando finalmente te movés, no volvés atrás. Tu terquedad no es un defecto de carácter, es un sistema de filtrado.',
@@ -69,8 +70,8 @@ export const SIGNOS = [
     elemento: 'Aire',
     regente: 'Mercurio',
     modalidad: 'Mutable',
-    frase: 'Dos mundos, una misma verdad.',
-    palabras: ['Curiosidad', 'Versatilidad', 'Conexión', 'Ideas'],
+    frase: 'Dos miradas, una misma chispa.',
+    palabras: ['Aire', 'Curiosidad', 'Versatilidad', 'Conexión'],
     animal: 'Los gemelos',
     retrato:
       'Podés defender dos posiciones opuestas con la misma honestidad, y eso incomoda a quienes necesitan que la gente sea una sola cosa. No estás fingiendo: estás viendo más lados que el resto. El costo es que a veces vos tampoco sabés dónde quedaste parado.',
@@ -94,7 +95,7 @@ export const SIGNOS = [
     regente: 'Luna',
     modalidad: 'Cardinal',
     frase: 'Sentir también es fuerza.',
-    palabras: ['Intuición', 'Protección', 'Memoria', 'Hogar'],
+    palabras: ['Agua', 'Intuición', 'Protección', 'Hogar'],
     animal: 'Cangrejo',
     retrato:
       'Te acordás de todo: de quién estuvo, de quién no, del tono exacto con el que te dijeron algo hace años. Esa memoria te vuelve leal y también te complica. Cuidás a los demás con una precisión que rara vez pedís para vos.',
@@ -118,7 +119,7 @@ export const SIGNOS = [
     regente: 'Sol',
     modalidad: 'Fijo',
     frase: 'Brillás aunque no hagas ruido.',
-    palabras: ['Creatividad', 'Presencia', 'Confianza', 'Vida'],
+    palabras: ['Fuego', 'Creatividad', 'Presencia', 'Vida'],
     animal: 'León',
     retrato:
       'Ocupás espacio sin proponértelo. Entrás a un lugar y algo se reacomoda, y después te preguntan por qué. No es ego: es que te tomás en serio lo que hacés, y esa seriedad se nota.',
@@ -142,7 +143,7 @@ export const SIGNOS = [
     regente: 'Mercurio',
     modalidad: 'Mutable',
     frase: 'En los detalles también habita lo esencial.',
-    palabras: ['Análisis', 'Claridad', 'Servicio', 'Orden'],
+    palabras: ['Tierra', 'Análisis', 'Claridad', 'Servicio'],
     animal: 'La doncella',
     retrato:
       'Ves el error antes que nadie y te cuesta no decirlo. Tu atención al detalle no es manía: es una forma de cuidado que la mayoría no reconoce porque sólo se nota cuando falta.',
@@ -190,7 +191,7 @@ export const SIGNOS = [
     regente: 'Plutón',
     modalidad: 'Fijo',
     frase: 'Lo profundo también es parte de la luz.',
-    palabras: ['Intensidad', 'Transformación', 'Verdad', 'Poder'],
+    palabras: ['Agua', 'Intensidad', 'Transformación', 'Poder'],
     animal: 'Escorpión',
     retrato:
       'No te interesa la superficie de nada ni de nadie. Preguntás lo que otros evitan y sostenés silencios que la mayoría necesita llenar. La gente te cuenta cosas que no le cuenta a nadie, y no sabe bien por qué.',
@@ -214,7 +215,7 @@ export const SIGNOS = [
     regente: 'Júpiter',
     modalidad: 'Mutable',
     frase: 'Ir más allá es volver a vos.',
-    palabras: ['Expansión', 'Libertad', 'Aventura', 'Sentido'],
+    palabras: ['Fuego', 'Expansión', 'Libertad', 'Sentido'],
     animal: 'Centauro',
     retrato:
       'Necesitás que las cosas signifiquen algo o te vas. No te aburre la rutina: te aburre la rutina sin propósito. Decís la verdad de frente y después te sorprende que haya dolido, porque en tu cabeza sólo estabas siendo claro.',
@@ -237,8 +238,8 @@ export const SIGNOS = [
     elemento: 'Tierra',
     regente: 'Saturno',
     modalidad: 'Cardinal',
-    frase: 'Los sueños se construyen.',
-    palabras: ['Disciplina', 'Estructura', 'Ambición', 'Realidad'],
+    frase: 'Los sueños también se construyen.',
+    palabras: ['Tierra', 'Disciplina', 'Ambición', 'Estructura'],
     animal: 'Cabra',
     retrato:
       'Pensás en plazos que a los demás les parecen absurdos. Estás dispuesto a que algo tarde diez años si el resultado lo vale, y esa paciencia te da una ventaja que casi nadie sostiene. Lo que te falta no es voluntad.',
@@ -262,7 +263,7 @@ export const SIGNOS = [
     regente: 'Urano',
     modalidad: 'Fijo',
     frase: 'Otro mundo también es posible.',
-    palabras: ['Originalidad', 'Cambio', 'Comunidad', 'Futuro'],
+    palabras: ['Aire', 'Originalidad', 'Cambio', 'Futuro'],
     animal: 'El ánfora',
     retrato:
       'Ves el sistema completo mientras los demás discuten una parte. Te importa la gente en general con una intensidad que a veces no le dedicás a la gente concreta que tenés al lado. Pensás diez años adelante y eso te deja solo en el presente.',
@@ -286,7 +287,7 @@ export const SIGNOS = [
     regente: 'Neptuno',
     modalidad: 'Mutable',
     frase: 'Lo invisible también guía.',
-    palabras: ['Sensibilidad', 'Imaginación', 'Empatía', 'Espiritualidad'],
+    palabras: ['Agua', 'Sensibilidad', 'Imaginación', 'Empatía'],
     animal: 'Los peces',
     retrato:
       'Absorbés el estado de ánimo de cualquier lugar en el que entrás, y muchas veces lo confundís con el tuyo. Esa permeabilidad te hace entender a la gente sin que te expliquen nada, y también te deja cansado sin motivo aparente.',
@@ -327,14 +328,14 @@ export const ARTE_DISPONIBLE = {
   aries:       { glifo: 'glifo-aries.webp',       animal: null },
   tauro:       { glifo: 'glifo-tauro.svg',        animal: null },
   geminis:     { glifo: 'glifo-geminis.svg',      animal: null },
-  cancer:      { glifo: 'glifo-cancer.svg',       animal: null },
+  cancer:      { glifo: 'glifo-cancer.webp',      animal: null },
   leo:         { glifo: 'glifo-leo.svg',          animal: null },
   virgo:       { glifo: 'glifo-virgo.svg',        animal: null },
   libra:       { glifo: 'glifo-libra.svg',        animal: null },
-  escorpio:    { glifo: 'glifo-escorpio.svg',     animal: null },
+  escorpio:    { glifo: 'glifo-escorpio.webp',    animal: null },
   sagitario:   { glifo: 'glifo-sagitario.svg',    animal: null },
-  capricornio: { glifo: 'glifo-capricornio.svg',  animal: null },
-  acuario:     { glifo: 'glifo-acuario.svg',      animal: null },
+  capricornio: { glifo: 'glifo-capricornio.webp', animal: null },
+  acuario:     { glifo: 'glifo-acuario.webp',     animal: null },
   piscis:      { glifo: 'glifo-piscis.svg',       animal: null },
 };
 

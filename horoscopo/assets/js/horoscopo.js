@@ -88,17 +88,37 @@ function renderPoster(signo) {
     ? `<img src="${IMG.arte(arte.animal)}" alt="${signo.animal}, símbolo de ${signo.nombre}" data-anim="animal" style="--d:${SECUENCIA[1].delay}ms">`
     : '';
 
+  // Las fechas vienen como "21 MAR — 19 ABR" y en el poster van en dos
+  // líneas, una por extremo, como en las piezas de la serie.
+  const fechas = signo.fechas.split('—').map((t) => t.trim()).join('<br>');
+
   $('#poster').innerHTML = `
+    <div class="capa capa--cielo" aria-hidden="true">
+      <img src="assets/img/nube-1.webp" alt="" width="705" height="356" data-anim style="--d:60ms">
+      <img src="assets/img/nube-6.webp" alt="" width="393" height="233" data-anim style="--d:60ms">
+    </div>
     <div class="capa capa--disco">
-      <img src="${IMG.disco}" alt="" width="780" height="780" data-anim="disco" style="--d:${SECUENCIA[0].delay}ms">
+      <img src="${IMG.disco}" alt="" width="800" height="800" data-anim="disco" style="--d:${SECUENCIA[0].delay}ms">
     </div>
     <div class="capa capa--animal">${animal}</div>
     <div class="capa capa--glifo">${glifo}</div>
-    <div class="capa capa--tipo">
-      <span class="poster__kicker" data-anim style="--d:${SECUENCIA[3].delay}ms">Horóscopo</span>
+
+    <div class="poster__marca" data-anim style="--d:${SECUENCIA[3].delay}ms">
+      <img src="${IMG.wordmark}" alt="SIESTA" width="420" height="140">
+      <span class="regla"></span>
+    </div>
+
+    <div class="poster__meta" data-anim style="--d:${SECUENCIA[3].delay}ms">
+      <p class="poster__palabras">${signo.palabras.join('<br>')}</p>
+      <span class="regla"></span>
+      <p class="poster__fechas">${fechas}</p>
+    </div>
+
+    <div class="poster__tipo">
       <h1 class="poster__nombre" data-anim
           style="--d:${SECUENCIA[4].delay}ms; --ancho-em:${anchoEm(signo.nombre).toFixed(3)}">${signo.nombre}</h1>
-      <p class="poster__fechas" data-anim style="--d:${SECUENCIA[5].delay}ms">${signo.fechas}</p>
+      <p class="poster__frase" data-anim style="--d:${SECUENCIA[5].delay}ms">${signo.frase}</p>
+      <span class="regla" data-anim style="--d:${SECUENCIA[5].delay}ms"></span>
     </div>`;
 
   // Forzar un reflow antes de agregar la clase para que la animación
@@ -207,15 +227,24 @@ function cargarImagen(src) {
   });
 }
 
-function dibujarGrano(ctx, w, h, alpha) {
-  const datos = ctx.createImageData(w, h);
-  const px = datos.data;
-  for (let i = 0; i < px.length; i += 4) {
-    const v = 120 + Math.random() * 135;
-    px[i] = px[i + 1] = px[i + 2] = v;
-    px[i + 3] = alpha;
+/* Dibuja un texto en mayúsculas con tracking y salto de línea por ancho.
+   Canvas no tiene wrapping: hay que medir palabra por palabra. */
+function parrafo(ctx, texto, x, y, maxAncho, alto) {
+  const palabras = texto.toUpperCase().split(' ');
+  let linea = '';
+  let cursor = y;
+  for (const w of palabras) {
+    const prueba = linea ? `${linea} ${w}` : w;
+    if (ctx.measureText(prueba).width > maxAncho && linea) {
+      ctx.fillText(linea, x, cursor);
+      cursor += alto;
+      linea = w;
+    } else {
+      linea = prueba;
+    }
   }
-  ctx.putImageData(datos, 0, 0);
+  if (linea) { ctx.fillText(linea, x, cursor); cursor += alto; }
+  return cursor;
 }
 
 async function generarTarjeta(signo) {
@@ -224,102 +253,132 @@ async function generarTarjeta(signo) {
   canvas.height = CARD.h;
   const ctx = canvas.getContext('2d');
 
-  // Cielo
-  const cielo = ctx.createRadialGradient(CARD.w / 2, CARD.h * 0.2, 60, CARD.w / 2, CARD.h * 0.5, CARD.h * 0.9);
-  cielo.addColorStop(0, '#3f819c');
-  cielo.addColorStop(0.5, '#2d6b87');
-  cielo.addColorStop(1, '#1e5570');
-  ctx.fillStyle = cielo;
+  // Papel de fondo: el mismo asset de la serie que usa el poster en pantalla.
+  ctx.fillStyle = '#2d6b87';
   ctx.fillRect(0, 0, CARD.w, CARD.h);
 
   const arte = ARTE_DISPONIBLE[signo.id] || {};
-  const [disco, glifo, animal, wordmark] = await Promise.all([
+  const [papel, disco, glifo, animal, wordmark, nubeA, nubeB] = await Promise.all([
+    cargarImagen('assets/img/papel.webp'),
     cargarImagen(IMG.disco),
     arte.glifo ? cargarImagen(IMG.arte(arte.glifo)) : null,
     arte.animal ? cargarImagen(IMG.arte(arte.animal)) : null,
     cargarImagen(IMG.wordmark),
+    cargarImagen('assets/img/nube-1.webp'),
+    cargarImagen('assets/img/nube-6.webp'),
   ]);
 
-  /* Las proporciones son las mismas que en pantalla: la tarjeta tiene el
-     mismo 4:5 que el poster, así que se reutilizan los porcentajes en vez
-     de inventar una composición paralela que después se desincroniza. */
-  const P = { glifoTop: .012, glifoAlto: .12, discoTop: .176, discoAncho: .52,
-              kicker: .615, nombreBase: .885, frase: .925, firma: .955 };
+  /* Las proporciones son las mismas que en pantalla, calcadas del CSS: la
+     tarjeta es el mismo poster, no una composición paralela que después se
+     desincroniza. Los porcentajes de X van sobre el ancho; los de Y, sobre
+     lo que corresponda según de dónde salen en el CSS. */
+  const W = CARD.w, H = CARD.h;
+  const cq = (n) => W * n / 100;   // equivalente de la unidad cqw
 
+  if (papel) {
+    // cover: se escala al lado que falte y se centra, como background-size
+    const esc = Math.max(W / papel.width, H / papel.height);
+    const pw = papel.width * esc, ph = papel.height * esc;
+    ctx.drawImage(papel, (W - pw) / 2, (H - ph) / 2, pw, ph);
+  }
+
+  // Nubes del horizonte
+  ctx.globalAlpha = .42;
+  if (nubeA) {
+    const w = W * .66, h = w * (nubeA.height / nubeA.width);
+    ctx.drawImage(nubeA, -W * .14, H + H * .09 - h, w, h);
+  }
+  if (nubeB) {
+    const w = W * .46, h = w * (nubeB.height / nubeB.width);
+    ctx.save();
+    ctx.translate(W + W * .10, H + H * .04 - h);
+    ctx.scale(-1, 1);
+    ctx.drawImage(nubeB, 0, 0, w, h);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+
+  // Disco
   if (disco) {
-    const d = CARD.w * P.discoAncho;
-    ctx.drawImage(disco, (CARD.w - d) / 2, CARD.h * P.discoTop, d, d);
+    const d = W * .47;
+    ctx.drawImage(disco, (W - d) / 2, cq(28), d, d);
   }
 
+  // Animal
   if (animal) {
-    const aw = CARD.w * .84;
+    const aw = W * .76;
     const ah = aw * (animal.height / animal.width);
-    ctx.drawImage(animal, (CARD.w - aw) / 2, CARD.h * .60 - ah + aw * .5, aw, ah);
+    ctx.drawImage(animal, (W - aw) / 2, H - H * .12 - ah, aw, ah);
   }
 
-  const gAlto = CARD.h * P.glifoAlto;
+  // Glifo
+  const gw = W * .19;
   if (glifo) {
-    const gw = gAlto * (glifo.width / glifo.height);
-    ctx.drawImage(glifo, (CARD.w - gw) / 2, CARD.h * P.glifoTop, gw, gAlto);
+    ctx.drawImage(glifo, (W - gw) / 2, cq(11), gw, gw * (glifo.height / glifo.width));
   } else {
     ctx.fillStyle = '#f2e4c6';
-    ctx.font = `${Math.round(gAlto)}px Inter, system-ui, sans-serif`;
+    ctx.font = `${Math.round(cq(17))}px Inter, system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(GLIFOS_UNICODE[signo.id], CARD.w / 2, CARD.h * P.glifoTop);
+    ctx.fillText(GLIFOS_UNICODE[signo.id], W / 2, cq(11));
   }
 
-  ctx.textAlign = 'center';
+  const regla = (x, y, alineado = 'left') => {
+    ctx.fillStyle = '#e6d4b0';
+    const w = cq(5);
+    ctx.fillRect(alineado === 'right' ? x - w : x, y, w, cq(.55));
+  };
 
-  /* El nombre se ajusta al ancho medido, igual que en pantalla: así los doce
-     signos ocupan lo mismo y LEO no queda perdido al lado de CAPRICORNIO.
+  // Wordmark arriba a la izquierda
+  if (wordmark) {
+    const ww = cq(10);
+    ctx.drawImage(wordmark, W * .05, H * .145, ww, ww * (wordmark.height / wordmark.width));
+    regla(W * .05, H * .145 + ww * (wordmark.height / wordmark.width) + cq(2));
+  }
 
-     Se ancla por línea de base, no por el borde superior: en canvas el
-     textBaseline 'top' incluye todo el ascenso de la fuente y no equivale
-     al line-height de CSS. */
+  // Palabras clave y fechas, arriba a la derecha
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#e6d4b0';
+  ctx.font = `500 ${Math.round(cq(2.5))}px Inter, system-ui, sans-serif`;
+  ctx.letterSpacing = `${cq(.5).toFixed(1)}px`;
+  const altoMeta = cq(2.5) * 1.85;
+  let my = H * .15;
+  for (const palabra of signo.palabras) {
+    ctx.fillText(palabra.toUpperCase(), W * .95, my);
+    my += altoMeta;
+  }
+  my += cq(2.4);
+  regla(W * .95, my, 'right');
+  my += cq(.55) + cq(2.4);
+  for (const t of signo.fechas.split('—').map((x) => x.trim())) {
+    ctx.fillText(t, W * .95, my);
+    my += altoMeta;
+  }
+  ctx.letterSpacing = '0px';
+
+  // Nombre grande a la izquierda
   const NOMBRE = signo.nombre.toUpperCase();
   ctx.font = '100px Anton, Arial Narrow, sans-serif';
   const anchoBase = ctx.measureText(NOMBRE).width / 100;
-  const cuerpo = Math.round(Math.min(CARD.w * .78 / anchoBase, CARD.w * .44));
+  const cuerpo = Math.round(Math.min(cq(14.5), cq(58) / anchoBase));
 
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
   ctx.font = `${cuerpo}px Anton, Arial Narrow, sans-serif`;
-  ctx.textBaseline = 'alphabetic';
-  const base = CARD.h * P.nombreBase;
   ctx.fillStyle = '#f2e4c6';
-  ctx.fillText(NOMBRE, CARD.w / 2, base);
-
-  /* El kicker se coloca contra el alto real de las mayúsculas, medido, no
-     contra una fracción estimada del cuerpo: Anton tiene la caja alta y con
-     un porcentaje fijo el kicker terminaba tapado por el nombre. */
   const m = ctx.measureText(NOMBRE);
-  const topeNombre = base - m.actualBoundingBoxAscent;
+  const base = H * .32 + m.actualBoundingBoxAscent;
+  ctx.fillText(NOMBRE, W * .05, base);
 
+  // Frase debajo, en versalitas con tracking, y la regla de cierre
+  ctx.textBaseline = 'top';
   ctx.fillStyle = '#e6d4b0';
-  ctx.font = '600 28px Inter, system-ui, sans-serif';
-  ctx.textBaseline = 'alphabetic';
-  ctx.letterSpacing = '12px';
-  ctx.fillText('HORÓSCOPO', CARD.w / 2, topeNombre - CARD.h * .022);
+  ctx.font = `500 ${Math.round(cq(2.6))}px Inter, system-ui, sans-serif`;
+  ctx.letterSpacing = `${cq(.62).toFixed(1)}px`;
+  const finFrase = parrafo(ctx, signo.frase, W * .05, base + cq(4), cq(24), cq(2.6) * 2);
   ctx.letterSpacing = '0px';
-
-  // La frase es lo que se cita: es el activo que viaja.
-  ctx.font = 'italic 40px Newsreader, Georgia, serif';
-  ctx.fillStyle = '#e6d4b0';
-  ctx.fillText(signo.frase, CARD.w / 2, CARD.h * P.frase);
-
-  if (wordmark) {
-    const ww = 190;
-    ctx.globalAlpha = .9;
-    ctx.drawImage(wordmark, (CARD.w - ww) / 2, CARD.h * P.firma, ww, ww * (wordmark.height / wordmark.width));
-    ctx.globalAlpha = 1;
-  }
-
-  // Grano encima de todo, en su propia capa para no teñir el resto
-  const gr = document.createElement('canvas');
-  gr.width = CARD.w; gr.height = CARD.h;
-  dibujarGrano(gr.getContext('2d'), CARD.w, CARD.h, 26);
-  ctx.globalCompositeOperation = 'overlay';
-  ctx.drawImage(gr, 0, 0);
-  ctx.globalCompositeOperation = 'source-over';
+  regla(W * .05, finFrase + cq(1.6));
 
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
 }
@@ -384,6 +443,9 @@ function mostrarSigno(signo, { empujarHistorial = true } = {}) {
   document.title = `${signo.nombre} · Horóscopo SIESTA`;
   $('#portal').hidden = true;
   $('#resultado').hidden = false;
+  // El poster ya lleva el wordmark y la metadata: el encabezado del sitio
+  // repetiría la marca dos veces en la misma pantalla.
+  document.body.classList.add('con-signo');
 
   renderPoster(signo);
   renderLectura(signo);
@@ -412,6 +474,7 @@ function mostrarPortal() {
   document.title = 'Horóscopo · SIESTA';
   $('#resultado').hidden = true;
   $('#portal').hidden = false;
+  document.body.classList.remove('con-signo');
 }
 
 async function init() {
